@@ -1,20 +1,60 @@
 export const BUILT_IN_PRESETS = {
   fire: [
     {
-      name: 'Small Flame',
-      params: { intensity: 28, height: 48, turbulence: 18, colorTemp: 72, flameWidth: 38 },
+      name: 'Candle',
+      params: {
+        intensity: 28, flameHeight: 42, flameWidth: 22, turbulence: 12, flickerSpeed: 65,
+        windDir: 0, windStrength: 0, emberAmount: 8, sparkAmount: 4,
+        bloom: 38, heatDistortion: 8, colorTemp: 90, coreBrightness: 85, smokeAmount: 10,
+      },
+    },
+    {
+      name: 'Torch',
+      params: {
+        intensity: 52, flameHeight: 95, flameWidth: 40, turbulence: 28, flickerSpeed: 55,
+        windDir: 0, windStrength: 18, emberAmount: 35, sparkAmount: 22,
+        bloom: 55, heatDistortion: 18, colorTemp: 80, coreBrightness: 78, smokeAmount: 25,
+      },
+    },
+    {
+      name: 'Campfire',
+      params: {
+        intensity: 62, flameHeight: 75, flameWidth: 110, turbulence: 35, flickerSpeed: 45,
+        windDir: 0, windStrength: 8, emberAmount: 65, sparkAmount: 45,
+        bloom: 58, heatDistortion: 22, colorTemp: 82, coreBrightness: 72, smokeAmount: 35,
+      },
     },
     {
       name: 'Heavy Fire',
-      params: { intensity: 88, height: 118, turbulence: 62, colorTemp: 84, flameWidth: 150 },
+      params: {
+        intensity: 90, flameHeight: 130, flameWidth: 155, turbulence: 55, flickerSpeed: 50,
+        windDir: 0, windStrength: 5, emberAmount: 70, sparkAmount: 55,
+        bloom: 80, heatDistortion: 40, colorTemp: 78, coreBrightness: 88, smokeAmount: 55,
+      },
     },
     {
-      name: 'Blue Plasma',
-      params: { intensity: 55, height: 90, turbulence: 35, colorTemp: 8, flameWidth: 65 },
+      name: 'Wind-Blown',
+      params: {
+        intensity: 65, flameHeight: 90, flameWidth: 95, turbulence: 50, flickerSpeed: 60,
+        windDir: 40, windStrength: 72, emberAmount: 55, sparkAmount: 40,
+        bloom: 60, heatDistortion: 28, colorTemp: 80, coreBrightness: 75, smokeAmount: 30,
+      },
+    },
+    {
+      name: 'Gas Flame',
+      params: {
+        intensity: 48, flameHeight: 68, flameWidth: 55, turbulence: 18, flickerSpeed: 35,
+        windDir: 0, windStrength: 0, emberAmount: 5, sparkAmount: 8,
+        bloom: 45, heatDistortion: 15, colorTemp: 20, coreBrightness: 90, smokeAmount: 5,
+      },
     },
     {
       name: 'Wildfire',
-      params: { intensity: 72, height: 105, turbulence: 90, colorTemp: 68, flameWidth: 195 },
+      params: {
+        intensity: 82, flameHeight: 115, flameWidth: 200, turbulence: 88, flickerSpeed: 72,
+        windDir: 25, windStrength: 45, emberAmount: 90, sparkAmount: 80,
+        bloom: 72, heatDistortion: 50, colorTemp: 68, coreBrightness: 70, smokeAmount: 65,
+      },
     },
   ],
 
