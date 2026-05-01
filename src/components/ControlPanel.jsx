@@ -1,9 +1,25 @@
 import ParameterSlider from './ParameterSlider';
+import PresetPanel from './PresetPanel';
 
-export default function ControlPanel({ effectDef, params, onChange, onRandomize, onReset, onExport }) {
+export default function ControlPanel({
+  effectDef, params, onChange,
+  onRandomize, onReset, onExport,
+  userPresets, onPresetLoad, onPresetSave, onPresetDelete,
+}) {
   return (
     <div className="control-panel">
-      <div className="section-label">PARAMETERS</div>
+      <PresetPanel
+        effectId={effectDef.id}
+        currentParams={params}
+        userPresets={userPresets}
+        onLoad={onPresetLoad}
+        onSave={onPresetSave}
+        onDelete={onPresetDelete}
+      />
+
+      <div className="divider" />
+
+      <div className="section-label" style={{ padding: '0 0 8px' }}>PARAMETERS</div>
       <div className="params-list">
         {effectDef.params.map(param => (
           <ParameterSlider

@@ -378,6 +378,164 @@ html, body, #root {
 }
 
 /* ──────────────────────────────────────────────
+   DIVIDER
+────────────────────────────────────────────── */
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: 14px 0 12px;
+}
+
+/* ──────────────────────────────────────────────
+   PRESET PANEL
+────────────────────────────────────────────── */
+.preset-panel {
+  padding-bottom: 4px;
+}
+
+.preset-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.preset-save-toggle {
+  font-family: var(--font);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 3px 7px;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s;
+}
+.preset-save-toggle:hover,
+.preset-save-toggle.active {
+  color: var(--accent);
+  border-color: var(--accent-dim);
+}
+
+.preset-save-form {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.preset-name-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-bright);
+  font-family: var(--font);
+  font-size: 10px;
+  padding: 5px 8px;
+  outline: none;
+  transition: border-color 0.12s;
+}
+.preset-name-input:focus {
+  border-color: var(--accent-dim);
+}
+.preset-name-input::placeholder { color: var(--text-dim); }
+
+.preset-save-confirm {
+  font-family: var(--font);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  background: rgba(232,93,38,0.12);
+  border: 1px solid var(--accent-dim);
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  padding: 5px 9px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s;
+}
+.preset-save-confirm:hover { background: rgba(232,93,38,0.22); }
+
+.preset-save-error {
+  font-size: 9px;
+  color: #ff6050;
+  width: 100%;
+}
+
+.preset-group {
+  margin-bottom: 8px;
+}
+
+.preset-group-label {
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+  opacity: 0.6;
+}
+
+.preset-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.preset-chip {
+  font-family: var(--font);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text);
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+  white-space: nowrap;
+}
+.preset-chip:hover {
+  background: #22222c;
+  border-color: #3a3a50;
+  color: var(--text-bright);
+}
+
+.preset-chip.user-chip {
+  border-color: #2a2a42;
+  color: #9090b8;
+}
+.preset-chip.user-chip:hover {
+  color: var(--text-bright);
+}
+
+.preset-chip-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.preset-delete {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 2px 3px;
+  border-radius: 2px;
+  transition: color 0.1s, background 0.1s;
+  opacity: 0.5;
+}
+.preset-delete:hover {
+  color: #ff6050;
+  background: rgba(255,60,50,0.08);
+  opacity: 1;
+}
+
+/* ──────────────────────────────────────────────
    PANEL ACTION BUTTONS
 ────────────────────────────────────────────── */
 .panel-actions {
