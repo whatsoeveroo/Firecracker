@@ -1,0 +1,215 @@
+import { createFireEffect } from './fire';
+import { createSparksEffect } from './sparks';
+import { createGlareEffect } from './glare';
+import { createRaysEffect } from './rays';
+import { createSmokeEffect } from './smoke';
+import { createEmbersEffect } from './embers';
+import { createEnergyPulseEffect } from './energyPulse';
+import { createExplosionRingEffect } from './explosionRing';
+import { createElectricArcEffect } from './electricArc';
+import { createDustBurstEffect } from './dustBurst';
+
+export const EFFECTS = [
+  {
+    id: 'fire',
+    label: 'Fire',
+    icon: '🔥',
+    factory: createFireEffect,
+    defaults: {
+      intensity: 60,
+      height: 80,
+      turbulence: 40,
+      colorTemp: 80,
+      flameWidth: 80,
+    },
+    params: [
+      { key: 'intensity', label: 'Intensity', min: 10, max: 100 },
+      { key: 'height', label: 'Height', min: 20, max: 150 },
+      { key: 'turbulence', label: 'Turbulence', min: 0, max: 100 },
+      { key: 'colorTemp', label: 'Color Temp', min: 0, max: 100, hint: 'Cool → Warm' },
+      { key: 'flameWidth', label: 'Flame Width', min: 10, max: 200 },
+    ],
+  },
+  {
+    id: 'sparks',
+    label: 'Sparks',
+    icon: '✦',
+    factory: createSparksEffect,
+    defaults: {
+      sparkCount: 30,
+      spreadAngle: 60,
+      length: 60,
+      brightness: 80,
+      decay: 50,
+    },
+    params: [
+      { key: 'sparkCount', label: 'Spark Count', min: 5, max: 80 },
+      { key: 'spreadAngle', label: 'Spread Angle', min: 5, max: 180 },
+      { key: 'length', label: 'Length', min: 10, max: 120 },
+      { key: 'brightness', label: 'Brightness', min: 10, max: 100 },
+      { key: 'decay', label: 'Decay', min: 10, max: 100 },
+    ],
+  },
+  {
+    id: 'glare',
+    label: 'Glare / Bloom',
+    icon: '✸',
+    factory: createGlareEffect,
+    defaults: {
+      radius: 120,
+      brightness: 70,
+      softness: 60,
+      color: '#ffe4a0',
+      streakAmount: 6,
+    },
+    params: [
+      { key: 'radius', label: 'Radius', min: 20, max: 300 },
+      { key: 'brightness', label: 'Brightness', min: 10, max: 100 },
+      { key: 'softness', label: 'Softness', min: 0, max: 100 },
+      { key: 'color', label: 'Color', type: 'color' },
+      { key: 'streakAmount', label: 'Streak Count', min: 0, max: 16 },
+    ],
+  },
+  {
+    id: 'rays',
+    label: 'Rays / God Rays',
+    icon: '☀',
+    factory: createRaysEffect,
+    defaults: {
+      rayCount: 8,
+      rayLength: 70,
+      angle: 0,
+      softness: 60,
+      opacity: 70,
+    },
+    params: [
+      { key: 'rayCount', label: 'Ray Count', min: 2, max: 24 },
+      { key: 'rayLength', label: 'Length', min: 10, max: 100 },
+      { key: 'angle', label: 'Rotation', min: 0, max: 360 },
+      { key: 'softness', label: 'Softness', min: 0, max: 100 },
+      { key: 'opacity', label: 'Opacity', min: 10, max: 100 },
+    ],
+  },
+  {
+    id: 'smoke',
+    label: 'Smoke / Mist',
+    icon: '◎',
+    factory: createSmokeEffect,
+    defaults: {
+      density: 40,
+      spread: 60,
+      softness: 70,
+      speed: 40,
+      opacity: 60,
+    },
+    params: [
+      { key: 'density', label: 'Density', min: 5, max: 100 },
+      { key: 'spread', label: 'Spread', min: 10, max: 100 },
+      { key: 'softness', label: 'Softness', min: 0, max: 100 },
+      { key: 'speed', label: 'Speed', min: 5, max: 100 },
+      { key: 'opacity', label: 'Opacity', min: 5, max: 100 },
+    ],
+  },
+  {
+    id: 'embers',
+    label: 'Embers',
+    icon: '·',
+    factory: createEmbersEffect,
+    defaults: {
+      intensity: 50,
+      spread: 100,
+      glow: 60,
+      drift: 50,
+      opacity: 80,
+    },
+    params: [
+      { key: 'intensity', label: 'Intensity', min: 5, max: 100 },
+      { key: 'spread', label: 'Spread', min: 20, max: 300 },
+      { key: 'glow', label: 'Glow', min: 0, max: 100 },
+      { key: 'drift', label: 'Drift', min: 0, max: 100 },
+      { key: 'opacity', label: 'Opacity', min: 10, max: 100 },
+    ],
+  },
+  {
+    id: 'energyPulse',
+    label: 'Energy Pulse',
+    icon: '◉',
+    factory: createEnergyPulseEffect,
+    defaults: {
+      speed: 50,
+      radius: 200,
+      thickness: 6,
+      color: '#00d4ff',
+      intensity: 80,
+    },
+    params: [
+      { key: 'speed', label: 'Speed', min: 5, max: 100 },
+      { key: 'radius', label: 'Max Radius', min: 50, max: 400 },
+      { key: 'thickness', label: 'Thickness', min: 1, max: 20 },
+      { key: 'color', label: 'Color', type: 'color' },
+      { key: 'intensity', label: 'Intensity', min: 10, max: 100 },
+    ],
+  },
+  {
+    id: 'explosionRing',
+    label: 'Explosion Ring',
+    icon: '◌',
+    factory: createExplosionRingEffect,
+    defaults: {
+      force: 60,
+      thickness: 8,
+      color: '#ff6030',
+      rate: 50,
+      shockwave: 50,
+    },
+    params: [
+      { key: 'force', label: 'Force', min: 10, max: 100 },
+      { key: 'thickness', label: 'Ring Thickness', min: 1, max: 30 },
+      { key: 'color', label: 'Color', type: 'color' },
+      { key: 'rate', label: 'Rate', min: 5, max: 100 },
+      { key: 'shockwave', label: 'Shockwave Fill', min: 0, max: 100 },
+    ],
+  },
+  {
+    id: 'electricArc',
+    label: 'Electric Arc',
+    icon: '⚡',
+    factory: createElectricArcEffect,
+    defaults: {
+      intensity: 60,
+      color: '#a0d0ff',
+      reach: 150,
+      branches: 4,
+      flicker: 70,
+    },
+    params: [
+      { key: 'intensity', label: 'Intensity', min: 10, max: 100 },
+      { key: 'color', label: 'Color', type: 'color' },
+      { key: 'reach', label: 'Reach', min: 30, max: 300 },
+      { key: 'branches', label: 'Branches', min: 0, max: 10 },
+      { key: 'flicker', label: 'Flicker', min: 0, max: 100 },
+    ],
+  },
+  {
+    id: 'dustBurst',
+    label: 'Dust Burst',
+    icon: '❋',
+    factory: createDustBurstEffect,
+    defaults: {
+      volume: 40,
+      spread: 60,
+      size: 20,
+      color: '#c8a870',
+      rate: 50,
+      opacity: 70,
+    },
+    params: [
+      { key: 'volume', label: 'Volume', min: 5, max: 100 },
+      { key: 'spread', label: 'Spread', min: 10, max: 100 },
+      { key: 'size', label: 'Particle Size', min: 5, max: 60 },
+      { key: 'color', label: 'Color', type: 'color' },
+      { key: 'rate', label: 'Rate', min: 5, max: 100 },
+      { key: 'opacity', label: 'Opacity', min: 10, max: 100 },
+    ],
+  },
+];
