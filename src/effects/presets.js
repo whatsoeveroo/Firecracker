@@ -3,57 +3,82 @@ export const BUILT_IN_PRESETS = {
     {
       name: 'Candle',
       params: {
-        intensity: 28, flameHeight: 42, flameWidth: 22, turbulence: 12, flickerSpeed: 65,
-        windDir: 0, windStrength: 0, emberAmount: 8, sparkAmount: 4,
-        bloom: 38, heatDistortion: 8, colorTemp: 90, coreBrightness: 85, smokeAmount: 10,
+        intensity: 28, flameHeight: 42, flameWidth: 20, velocity: 22,
+        turbulence: 12, flickerSpeed: 65, windDir: 0, windStrength: 0,
+        emberAmount: 6, sparkAmount: 3, bloom: 35, heatDistortion: 8,
+        colorTemp: 55, coreBrightness: 85, smokeAmount: 8, colorPreset: 'natural',
       },
     },
     {
       name: 'Torch',
       params: {
-        intensity: 52, flameHeight: 95, flameWidth: 40, turbulence: 28, flickerSpeed: 55,
-        windDir: 0, windStrength: 18, emberAmount: 35, sparkAmount: 22,
-        bloom: 55, heatDistortion: 18, colorTemp: 80, coreBrightness: 78, smokeAmount: 25,
+        intensity: 52, flameHeight: 95, flameWidth: 38, velocity: 58,
+        turbulence: 28, flickerSpeed: 55, windDir: 0, windStrength: 18,
+        emberAmount: 38, sparkAmount: 24, bloom: 55, heatDistortion: 18,
+        colorTemp: 52, coreBrightness: 78, smokeAmount: 26, colorPreset: 'natural',
       },
     },
     {
       name: 'Campfire',
       params: {
-        intensity: 62, flameHeight: 75, flameWidth: 110, turbulence: 35, flickerSpeed: 45,
-        windDir: 0, windStrength: 8, emberAmount: 65, sparkAmount: 45,
-        bloom: 58, heatDistortion: 22, colorTemp: 82, coreBrightness: 72, smokeAmount: 35,
+        intensity: 62, flameHeight: 75, flameWidth: 115, velocity: 45,
+        turbulence: 38, flickerSpeed: 45, windDir: 0, windStrength: 8,
+        emberAmount: 70, sparkAmount: 50, bloom: 60, heatDistortion: 22,
+        colorTemp: 52, coreBrightness: 72, smokeAmount: 40, colorPreset: 'natural',
       },
     },
     {
       name: 'Heavy Fire',
       params: {
-        intensity: 90, flameHeight: 130, flameWidth: 155, turbulence: 55, flickerSpeed: 50,
-        windDir: 0, windStrength: 5, emberAmount: 70, sparkAmount: 55,
-        bloom: 80, heatDistortion: 40, colorTemp: 78, coreBrightness: 88, smokeAmount: 55,
-      },
-    },
-    {
-      name: 'Wind-Blown',
-      params: {
-        intensity: 65, flameHeight: 90, flameWidth: 95, turbulence: 50, flickerSpeed: 60,
-        windDir: 40, windStrength: 72, emberAmount: 55, sparkAmount: 40,
-        bloom: 60, heatDistortion: 28, colorTemp: 80, coreBrightness: 75, smokeAmount: 30,
-      },
-    },
-    {
-      name: 'Gas Flame',
-      params: {
-        intensity: 48, flameHeight: 68, flameWidth: 55, turbulence: 18, flickerSpeed: 35,
-        windDir: 0, windStrength: 0, emberAmount: 5, sparkAmount: 8,
-        bloom: 45, heatDistortion: 15, colorTemp: 20, coreBrightness: 90, smokeAmount: 5,
+        intensity: 90, flameHeight: 130, flameWidth: 160, velocity: 55,
+        turbulence: 55, flickerSpeed: 50, windDir: 0, windStrength: 5,
+        emberAmount: 74, sparkAmount: 60, bloom: 80, heatDistortion: 40,
+        colorTemp: 48, coreBrightness: 88, smokeAmount: 60, colorPreset: 'natural',
       },
     },
     {
       name: 'Wildfire',
       params: {
-        intensity: 82, flameHeight: 115, flameWidth: 200, turbulence: 88, flickerSpeed: 72,
-        windDir: 25, windStrength: 45, emberAmount: 90, sparkAmount: 80,
-        bloom: 72, heatDistortion: 50, colorTemp: 68, coreBrightness: 70, smokeAmount: 65,
+        intensity: 85, flameHeight: 118, flameWidth: 255, velocity: 62,
+        turbulence: 88, flickerSpeed: 72, windDir: 25, windStrength: 45,
+        emberAmount: 92, sparkAmount: 82, bloom: 74, heatDistortion: 50,
+        colorTemp: 45, coreBrightness: 70, smokeAmount: 68, colorPreset: 'wildfire',
+      },
+    },
+    {
+      name: 'Wind-Blown',
+      params: {
+        intensity: 65, flameHeight: 90, flameWidth: 95, velocity: 60,
+        turbulence: 50, flickerSpeed: 60, windDir: 40, windStrength: 72,
+        emberAmount: 60, sparkAmount: 44, bloom: 62, heatDistortion: 28,
+        colorTemp: 50, coreBrightness: 75, smokeAmount: 32, colorPreset: 'natural',
+      },
+    },
+    {
+      name: 'Gas Flame',
+      params: {
+        intensity: 48, flameHeight: 68, flameWidth: 52, velocity: 72,
+        turbulence: 15, flickerSpeed: 35, windDir: 0, windStrength: 0,
+        emberAmount: 4, sparkAmount: 8, bloom: 42, heatDistortion: 15,
+        colorTemp: 50, coreBrightness: 90, smokeAmount: 4, colorPreset: 'gas',
+      },
+    },
+    {
+      name: 'Jet Flame',
+      params: {
+        intensity: 78, flameHeight: 125, flameWidth: 45, velocity: 170,
+        turbulence: 16, flickerSpeed: 28, windDir: 0, windStrength: 0,
+        emberAmount: 25, sparkAmount: 58, bloom: 68, heatDistortion: 35,
+        colorTemp: 56, coreBrightness: 92, smokeAmount: 7, colorPreset: 'jet',
+      },
+    },
+    {
+      name: 'Engine Exhaust',
+      params: {
+        intensity: 72, flameHeight: 108, flameWidth: 78, velocity: 145,
+        turbulence: 24, flickerSpeed: 38, windDir: 0, windStrength: 0,
+        emberAmount: 40, sparkAmount: 65, bloom: 58, heatDistortion: 30,
+        colorTemp: 47, coreBrightness: 86, smokeAmount: 16, colorPreset: 'jet',
       },
     },
   ],

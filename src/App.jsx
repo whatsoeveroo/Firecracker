@@ -1,8 +1,10 @@
 import { useState, useRef, useCallback } from 'react';
 import EffectSelector from './components/EffectSelector';
-import ControlPanel from './components/ControlPanel';
-import CanvasPreview from './components/CanvasPreview';
-import { EFFECTS } from './effects';
+import ControlPanel   from './components/ControlPanel';
+import CanvasPreview  from './components/CanvasPreview';
+import PlaybackBar    from './components/PlaybackBar';
+import ExportModal    from './components/ExportModal';
+import { EFFECTS }   from './effects';
 import { getUserPresets, saveUserPreset, deleteUserPreset } from './effects/presets';
 import './App.css';
 
@@ -28,7 +30,10 @@ function randomizeParams(effectDef) {
         return `#${f(0)}${f(8)}${f(4)}`;
       };
       out[p.key] = hslToHex(h, s, l);
-    } else {
+    } else if (p.type === 'select') {
+      const opts = p.options;
+      out[p.key] = opts[Math.floor(Math.random() * opts.length)].value;
+    } else if (p.min !== undefined && p.max !== undefined) {
       out[p.key] = p.min + Math.random() * (p.max - p.min);
     }
   });
@@ -39,18 +44,42 @@ export default function App() {
   const [effectId,    setEffectId]    = useState('fire');
   const [params,      setParams]      = useState(() => getDefaults('fire'));
   const [userPresets, setUserPresets] = useState(() => getUserPresets());
-  const canvasRef = useRef(null);
 
+  // ── Playback state ──────────────────────────────────────────────────────
+  const [isPlaying,   setIsPlaying]   = useState(true);
+  const [loop,        setLoop]        = useState(true);
+  const [frameCount,  setFrameCount]  = useState(0);
+  const [restartKey,  setRestartKey]  = useState(0);
+
+  // ── Quality ─────────────────────────────────────────────────────────────
+  const [quality,     setQuality]     = useState('preview');
+
+  // ── Auto-restart on simulation-affecting param change ───────────────────
+  const [autoRestart, setAutoRestart] = useState(false);
+
+  // ── Export modal ─────────────────────────────────────────────────────────
+  const [showExport,  setShowExport]  = useState(false);
+
+  const canvasRef    = useRef(null);
   const activeEffect = EFFECTS.find(e => e.id === effectId);
 
   const handleEffectChange = useCallback((id) => {
     setEffectId(id);
     setParams(getDefaults(id));
+    setFrameCount(0);
   }, []);
 
   const handleParamChange = useCallback((key, value) => {
     setParams(p => ({ ...p, [key]: value }));
-  }, []);
+
+    if (autoRestart) {
+      const def = EFFECTS.find(e => e.id === effectId);
+      const paramDef = def?.params.find(p => p.key === key);
+      if (paramDef?.restartOnChange) {
+        setRestartKey(k => k + 1);
+      }
+    }
+  }, [autoRestart, effectId]);
 
   const handleRandomize = useCallback(() => {
     setParams(randomizeParams(activeEffect));
@@ -60,14 +89,9 @@ export default function App() {
     setParams(getDefaults(effectId));
   }, [effectId]);
 
-  const handleExport = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const link = document.createElement('a');
-    link.download = `firecracker-${effectId}-${Date.now()}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-  }, [effectId]);
+  const handleRestart = useCallback(() => {
+    setRestartKey(k => k + 1);
+  }, []);
 
   const handlePresetLoad = useCallback((presetParams) => {
     setParams(prev => ({ ...prev, ...presetParams }));
@@ -94,6 +118,20 @@ export default function App() {
         <div className="header-effect-name">{activeEffect.label}</div>
       </header>
 
+      <PlaybackBar
+        isPlaying={isPlaying}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onRestart={handleRestart}
+        loop={loop}
+        onLoopToggle={() => setLoop(l => !l)}
+        frameCount={frameCount}
+        quality={quality}
+        onQualityChange={setQuality}
+        autoRestart={autoRestart}
+        onAutoRestartToggle={setAutoRestart}
+      />
+
       <div className="app-body">
         <aside className="sidebar">
           <EffectSelector activeId={effectId} onSelect={handleEffectChange} />
@@ -104,6 +142,10 @@ export default function App() {
             effectId={effectId}
             params={params}
             canvasRef={canvasRef}
+            isPlaying={isPlaying}
+            restartKey={restartKey}
+            quality={quality}
+            onFrameCount={setFrameCount}
           />
         </main>
 
@@ -114,7 +156,7 @@ export default function App() {
             onChange={handleParamChange}
             onRandomize={handleRandomize}
             onReset={handleReset}
-            onExport={handleExport}
+            onExport={() => setShowExport(true)}
             userPresets={userPresets}
             onPresetLoad={handlePresetLoad}
             onPresetSave={handlePresetSave}
@@ -122,6 +164,15 @@ export default function App() {
           />
         </aside>
       </div>
+
+      {showExport && (
+        <ExportModal
+          effectDef={activeEffect}
+          params={params}
+          liveCanvasRef={canvasRef}
+          onClose={() => setShowExport(false)}
+        />
+      )}
     </div>
   );
 }

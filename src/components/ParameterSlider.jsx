@@ -16,6 +16,25 @@ export default function ParameterSlider({ param, value, onChange }) {
     );
   }
 
+  if (param.type === 'select') {
+    return (
+      <div className="param-row">
+        <div className="param-header">
+          <span className="param-label">{param.label}</span>
+        </div>
+        <select
+          className="select-input"
+          value={value}
+          onChange={e => onChange(param.key, e.target.value)}
+        >
+          {param.options.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
+    );
+  }
+
   const pct = ((value - param.min) / (param.max - param.min)) * 100;
 
   return (
