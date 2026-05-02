@@ -1,6 +1,5 @@
 export function createEnergyPulseEffect() {
   let rings = [];
-  let phase = 0;
   let spawnTimer = 0;
 
   function hexToRgb(hex) {
@@ -13,15 +12,12 @@ export function createEnergyPulseEffect() {
   return {
     reset() {
       rings = [];
-      phase = 0;
       spawnTimer = 0;
     },
     update(ctx, canvas, params, dt) {
       const { speed, radius: maxRadius, thickness, color, intensity } = params;
       const cx = canvas.width / 2;
       const cy = canvas.height / 2;
-      phase += dt;
-
       spawnTimer += dt;
       const interval = Math.max(0.1, 1.5 - speed * 0.012);
       if (spawnTimer > interval) {

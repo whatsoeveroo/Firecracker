@@ -1,6 +1,5 @@
 export function createElectricArcEffect() {
   let bolts = [];
-  let phase = 0;
   let boltTimer = 0;
 
   function generateBolt(x1, y1, x2, y2, roughness, depth) {
@@ -41,15 +40,12 @@ export function createElectricArcEffect() {
   return {
     reset() {
       bolts = [];
-      phase = 0;
       boltTimer = 0;
     },
     update(ctx, canvas, params, dt) {
-      const { intensity, color, reach, flicker } = params;
+      const { intensity, color, flicker } = params;
       const cx = canvas.width / 2;
       const cy = canvas.height / 2;
-      phase += dt;
-
       boltTimer += dt;
       const interval = Math.max(0.05, 0.3 - intensity * 0.002);
       if (boltTimer > interval) {

@@ -13,7 +13,7 @@ export const EFFECTS = [
   {
     id: 'fire',
     label: 'Fire',
-    icon: '🔥',
+    icon: 'fire',
     factory: createFireEffect,
     defaults: {
       intensity:      65,
@@ -68,31 +68,106 @@ export const EFFECTS = [
   {
     id: 'sparks',
     label: 'Sparks',
-    icon: '✦',
+    icon: 'sparks',
     factory: createSparksEffect,
     defaults: {
-      sparkCount:  30,
-      spreadAngle: 60,
-      length:      60,
-      brightness:  80,
-      decay:       50,
-      direction:   -90,
-      flashSize:   60,
+      sparkCount:       52,
+      shotsPerSec:      2,
+      burstsPerShot:    1,
+      spreadAngle:      48,
+      direction:        -90,
+      length:           90,
+      particleLife:     46,
+      gravity:          44,
+      airDrag:          36,
+      chaos:            40,
+      brightness:       88,
+      flashSize:        62,
+      gasPlume:         34,
+      smokeAmount:      22,
+      lensFlare:        24,
+      spillGlow:        28,
+      decay:            56,
+      trailLength:      55,
+      trailWidth:       32,
+      fragmentWeight:   44,
+      microAmount:      38,
+      sparkColor:       '#ffb13b',
+      mixColorEnabled:  'off',
+      mixColor:         '#3c8cff',
+      gasColorEnabled:  'off',
+      gasColor:         '#ffb13b',
+      smokeColorEnabled:'off',
+      smokeColor:       '#8a6a52',
+      directionalBurst: 72,
+      smokeDrift:       45,
+      deflection:       0,
+      randomSeed:       0,
     },
     params: [
-      { key: 'sparkCount',  label: 'Spark Count',   min: 5,    max: 80 },
-      { key: 'spreadAngle', label: 'Spread Angle',  min: 5,    max: 360 },
-      { key: 'length',      label: 'Length',        min: 10,   max: 120 },
-      { key: 'brightness',  label: 'Brightness',    min: 10,   max: 100 },
-      { key: 'decay',       label: 'Decay',         min: 10,   max: 100 },
-      { key: 'direction',   label: 'Direction',     min: -180, max: 180, hint: '−90 = up' },
-      { key: 'flashSize',   label: 'Flash Size',    min: 0,    max: 100 },
+      // ── EMISSION ──
+      { key: 'sparkCount',    label: 'Spark Count',    min: 5,    max: 120, group: 'EMISSION' },
+      { key: 'shotsPerSec',   label: 'Shots / Sec',    min: 0,    max: 20,  group: 'EMISSION', hint: '0 = continuous spray' },
+      { key: 'burstsPerShot', label: 'Bursts / Shot',  min: 1,    max: 8,   group: 'EMISSION', hint: 'sub-bursts per shot' },
+      { key: 'spreadAngle',   label: 'Spread Angle',   min: 4,    max: 360, group: 'EMISSION' },
+      { key: 'direction',     label: 'Direction',      min: -180, max: 180, group: 'EMISSION', hint: '−90 = up' },
+      { key: 'length',        label: 'Velocity',       min: 5,    max: 150, group: 'EMISSION' },
+      // ── MOTION ──
+      { key: 'particleLife', label: 'Particle Life', min: 0, max: 100, group: 'MOTION' },
+      { key: 'gravity',      label: 'Gravity',       min: 0, max: 100, group: 'MOTION' },
+      { key: 'airDrag',      label: 'Air Drag',      min: 0, max: 100, group: 'MOTION' },
+      { key: 'chaos',        label: 'Scatter',       min: 0, max: 100, group: 'MOTION' },
+      { key: 'decay',        label: 'Burnout Fade',  min: 0, max: 100, group: 'MOTION', hint: 'slow ← → fast' },
+      // ── COLOR SYSTEM ──
+      { key: 'sparkColor', label: 'Spark Main Color', type: 'color', group: 'COLOR SYSTEM', subgroup: 'Spark Color' },
+      {
+        key: 'mixColorEnabled', label: 'Secondary Color Mix', type: 'select', group: 'COLOR SYSTEM', subgroup: 'Spark Color',
+        hint: 'blends an extra color into spark particles',
+        options: [
+          { value: 'off', label: 'Off' },
+          { value: 'on',  label: 'On'  },
+        ],
+      },
+      { key: 'mixColor', label: 'Secondary Spark Color', type: 'color', group: 'COLOR SYSTEM', subgroup: 'Spark Color' },
+      { key: 'brightness', label: 'Exposure', min: 10, max: 100, group: 'COLOR SYSTEM', subgroup: 'Flash / Core' },
+      { key: 'flashSize',  label: 'Flash Core', min: 0, max: 100, group: 'COLOR SYSTEM', subgroup: 'Flash / Core' },
+      { key: 'gasPlume', label: 'Gas Plume', min: 0, max: 100, group: 'COLOR SYSTEM', subgroup: 'Atmosphere Color' },
+      {
+        key: 'gasColorEnabled', label: 'Gas / Plume Color', type: 'select', group: 'COLOR SYSTEM', subgroup: 'Atmosphere Color',
+        hint: 'enables tinting for the soft atmospheric plume',
+        options: [
+          { value: 'off', label: 'Off' },
+          { value: 'on',  label: 'On'  },
+        ],
+      },
+      { key: 'gasColor', label: 'Gas / Plume Tint', type: 'color', group: 'COLOR SYSTEM', subgroup: 'Atmosphere Color' },
+      { key: 'smokeAmount', label: 'Smoke', min: 0, max: 100, group: 'COLOR SYSTEM', subgroup: 'Atmosphere Color' },
+      {
+        key: 'smokeColorEnabled', label: 'Smoke Color', type: 'select', group: 'COLOR SYSTEM', subgroup: 'Atmosphere Color',
+        hint: 'controls the fading smoke color after sparks burn out',
+        options: [
+          { value: 'off', label: 'Off' },
+          { value: 'on',  label: 'On'  },
+        ],
+      },
+      { key: 'smokeColor', label: 'Smoke Tint', type: 'color', group: 'COLOR SYSTEM', subgroup: 'Atmosphere Color' },
+      { key: 'lensFlare', label: 'Lens Flare', min: 0, max: 100, group: 'COLOR SYSTEM', subgroup: 'Glow / Spill' },
+      { key: 'spillGlow', label: 'Spill Glow', min: 0, max: 100, group: 'COLOR SYSTEM', subgroup: 'Glow / Spill' },
+      // ── ADVANCED ──
+      { key: 'trailLength',      label: 'Trail Length',      min: 0,  max: 100,  advanced: true },
+      { key: 'trailWidth',       label: 'Trail Width',       min: 0,  max: 100,  advanced: true },
+      { key: 'fragmentWeight',   label: 'Fragment Weight',   min: 0,  max: 100,  advanced: true },
+      { key: 'microAmount',      label: 'Micro Sparks',      min: 0,  max: 100,  advanced: true },
+      { key: 'directionalBurst', label: 'Directional Burst', min: 0,  max: 100,  advanced: true },
+      { key: 'smokeDrift',       label: 'Smoke Drift',       min: 0,  max: 100,  advanced: true },
+      { key: 'deflection',       label: 'Ground Deflection', min: 0,  max: 100,  advanced: true },
+      { key: 'randomSeed',       label: 'Random Seed',       min: 0,  max: 9999, advanced: true, hint: '0 = live random' },
     ],
   },
   {
     id: 'glare',
     label: 'Glare / Bloom',
-    icon: '✸',
+    icon: 'glare',
     factory: createGlareEffect,
     defaults: {
       radius:       120,
@@ -114,7 +189,7 @@ export const EFFECTS = [
   {
     id: 'rays',
     label: 'Rays / God Rays',
-    icon: '☀',
+    icon: 'rays',
     factory: createRaysEffect,
     defaults: {
       rayCount:   8,
@@ -136,7 +211,7 @@ export const EFFECTS = [
   {
     id: 'smoke',
     label: 'Smoke / Mist',
-    icon: '◎',
+    icon: 'smoke',
     factory: createSmokeEffect,
     defaults: {
       density:    40,
@@ -158,7 +233,7 @@ export const EFFECTS = [
   {
     id: 'embers',
     label: 'Embers',
-    icon: '·',
+    icon: 'embers',
     factory: createEmbersEffect,
     defaults: {
       intensity: 50,
@@ -178,7 +253,7 @@ export const EFFECTS = [
   {
     id: 'energyPulse',
     label: 'Energy Pulse',
-    icon: '◉',
+    icon: 'energyPulse',
     factory: createEnergyPulseEffect,
     defaults: {
       speed:     50,
@@ -198,7 +273,7 @@ export const EFFECTS = [
   {
     id: 'explosionRing',
     label: 'Explosion Ring',
-    icon: '◌',
+    icon: 'explosionRing',
     factory: createExplosionRingEffect,
     defaults: {
       force:     60,
@@ -218,7 +293,7 @@ export const EFFECTS = [
   {
     id: 'electricArc',
     label: 'Electric Arc',
-    icon: '⚡',
+    icon: 'electricArc',
     factory: createElectricArcEffect,
     defaults: {
       intensity: 60,
@@ -238,7 +313,7 @@ export const EFFECTS = [
   {
     id: 'dustBurst',
     label: 'Dust Burst',
-    icon: '❋',
+    icon: 'dustBurst',
     factory: createDustBurstEffect,
     defaults: {
       volume:  40,

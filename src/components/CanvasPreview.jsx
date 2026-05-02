@@ -15,11 +15,13 @@ export default function CanvasPreview({
   const isPlayingRef = useRef(isPlaying);
   const qualityRef   = useRef(quality);
   const frameRef     = useRef(0);
+  const onFrameCountRef = useRef(onFrameCount);
 
   // Keep refs in sync so the rAF closure always reads current values
   useEffect(() => { paramsRef.current    = params;    }, [params]);
   useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
   useEffect(() => { qualityRef.current   = quality;   }, [quality]);
+  useEffect(() => { onFrameCountRef.current = onFrameCount; }, [onFrameCount]);
 
   // Swap effect when effectId changes
   useEffect(() => {
@@ -28,7 +30,7 @@ export default function CanvasPreview({
     if (effectRef.current) effectRef.current.reset?.();
     effectRef.current = def.factory();
     frameRef.current  = 0;
-    onFrameCount?.(0);
+    onFrameCountRef.current?.(0);
     lastTimeRef.current = null;
   }, [effectId]);
 
@@ -36,7 +38,7 @@ export default function CanvasPreview({
   useEffect(() => {
     if (effectRef.current) effectRef.current.reset?.();
     frameRef.current  = 0;
-    onFrameCount?.(0);
+    onFrameCountRef.current?.(0);
     lastTimeRef.current = null;
   }, [restartKey]);
 
@@ -75,7 +77,7 @@ export default function CanvasPreview({
 
       if (dt > 0) {
         frameRef.current += 1;
-        onFrameCount?.(frameRef.current);
+        onFrameCountRef.current?.(frameRef.current);
       }
 
       const dpr = window.devicePixelRatio || 1;

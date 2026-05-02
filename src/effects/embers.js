@@ -2,7 +2,7 @@ export function createEmbersEffect() {
   let particles = [];
 
   function spawnEmber(cx, cy, params) {
-    const { spread, intensity } = params;
+    const { spread } = params;
     return {
       x: cx + (Math.random() - 0.5) * spread,
       y: cy + (Math.random() - 0.5) * 20,
@@ -19,7 +19,7 @@ export function createEmbersEffect() {
 
   return {
     reset() { particles = []; },
-    update(ctx, canvas, params, dt) {
+    update(ctx, canvas, params) {
       const cx = canvas.width / 2;
       const cy = canvas.height * 0.7;
       const { intensity, spread, glow, drift, opacity } = params;
