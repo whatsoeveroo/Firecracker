@@ -1,19 +1,26 @@
 import { useState } from 'react';
-import { exportWebM, snapshotPNG, downloadBlob } from '../utils/exporter';
+import { exportVideo, snapshotPNG, downloadBlob } from '../utils/exporter';
 
-const RESOLUTIONS  = [512, 1024, 2048];
-const FPS_OPTS     = [24, 30, 60];
-const DURATION_OPTS = [1, 2, 3, 5];
-const QUALITIES    = [
+const RESOLUTIONS   = [512, 1024, 2048];
+const FPS_OPTS      = [24, 30, 60];
+const DURATION_OPTS = [5, 10, 15, 30];
+const QUALITIES     = [
   { id: 'preview', label: 'Preview' },
   { id: 'high',    label: 'High'    },
   { id: 'ultra',   label: 'Ultra'   },
 ];
 
+const FORMAT_OPTS = [
+  { value: 'webm', label: 'WebM' },
+  { value: 'mp4',  label: 'MP4'  },
+  { value: 'mov',  label: 'MOV'  },
+  { value: 'png',  label: 'PNG'  },
+];
+
 export default function ExportModal({ effectDef, params, liveCanvasRef, onClose }) {
   const [format,     setFormat]     = useState('webm');
   const [background, setBackground] = useState('black');
-  const [duration,   setDuration]   = useState(2);
+  const [duration,   setDuration]   = useState(5);
   const [fps,        setFps]        = useState(30);
   const [resolution, setResolution] = useState(1024);
   const [quality,    setQuality]    = useState('high');
@@ -21,6 +28,8 @@ export default function ExportModal({ effectDef, params, liveCanvasRef, onClose 
   const [error,      setError]      = useState(null);
 
   const running = progress !== null;
+  const isVideo = format !== 'png';
+  const supportsAlpha = format === 'webm';
 
   async function handleExport() {
     setError(null);
@@ -34,13 +43,14 @@ export default function ExportModal({ effectDef, params, liveCanvasRef, onClose 
         blob = await snapshotPNG(liveCanvasRef.current);
         downloadBlob(blob, `firecracker-${effectDef.id}-${Date.now()}.png`);
       } else {
-        blob = await exportWebM(
+        const exportBackground = supportsAlpha ? background : 'black';
+        blob = await exportVideo(
           effectDef.factory,
           params,
-          { duration, fps, resolution, exportQuality: quality, background },
+          { format, duration, fps, resolution, exportQuality: quality, background: exportBackground },
           p => setProgress(p),
         );
-        downloadBlob(blob, `firecracker-${effectDef.id}-${resolution}p-${fps}fps.webm`);
+        downloadBlob(blob, `firecracker-${effectDef.id}-${duration}s-${resolution}p-${fps}fps.${format}`);
       }
     } catch (e) {
       setError(e.message);
@@ -65,28 +75,33 @@ export default function ExportModal({ effectDef, params, liveCanvasRef, onClose 
             <SegControl
               value={format}
               onChange={setFormat}
-              options={[
-                { value: 'webm', label: 'WebM' },
-                { value: 'png',  label: 'PNG (frame)' },
-              ]}
+              options={FORMAT_OPTS}
             />
           </ModalRow>
 
-          {format === 'webm' && <>
+          {isVideo && <>
             <ModalRow label="Background">
-              <SegControl
-                value={background}
-                onChange={setBackground}
-                options={[
-                  { value: 'black',       label: 'Black'       },
-                  { value: 'transparent', label: 'Transparent' },
-                ]}
-              />
-              <div className="modal-note">
-                {background === 'transparent'
-                  ? 'VP9 alpha — compatible with AE & Blender'
-                  : 'Black bg — Screen/Add blend in AE / Blender'}
-              </div>
+              {supportsAlpha ? (
+                <>
+                  <SegControl
+                    value={background}
+                    onChange={setBackground}
+                    options={[
+                      { value: 'black',       label: 'Black'       },
+                      { value: 'transparent', label: 'Transparent' },
+                    ]}
+                  />
+                  <div className="modal-note">
+                    {background === 'transparent'
+                      ? 'VP9 alpha — compatible with AE & Blender'
+                      : 'Black bg — Screen/Add blend in AE / Blender'}
+                  </div>
+                </>
+              ) : (
+                <div className="modal-note">
+                  H.264 export uses a baked black background. Use WebM for transparency.
+                </div>
+              )}
             </ModalRow>
 
             <ModalRow label="Duration">
@@ -123,7 +138,9 @@ export default function ExportModal({ effectDef, params, liveCanvasRef, onClose 
 
             <div className="modal-estimate">
               ~{duration}s at {fps}fps · {resolution}×{resolution}px ·&nbsp;
-              real-time render ({duration}s minimum)
+              {format === 'webm'
+                ? 'frame-accurate render when WebCodecs is available'
+                : `${format.toUpperCase()} H.264 real-time render`}
             </div>
           </>}
         </div>
