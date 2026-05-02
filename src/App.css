@@ -75,9 +75,10 @@ html, body, #root {
 }
 
 .logo-icon {
-  font-size: 16px;
+  display: flex;
+  align-items: center;
   color: var(--accent);
-  filter: drop-shadow(0 0 5px var(--accent-glow));
+  filter: drop-shadow(0 0 6px var(--accent-glow));
   transition: color 0.2s, filter 0.2s;
 }
 
@@ -210,9 +211,10 @@ html, body, #root {
 }
 
 .effect-icon {
-  font-size: 13px;
   width: 18px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
 }
 
@@ -699,8 +701,8 @@ html, body, #root {
 }
 
 .btn-icon {
-  font-size: 12px;
-  line-height: 1;
+  display: flex;
+  align-items: center;
 }
 
 .randomize-btn:hover {

@@ -1,4 +1,5 @@
 import { QUALITY_LEVELS } from '../utils/qualityLevels';
+import { IconPlay, IconPause, IconRestart, IconLoop } from '../icons';
 
 export default function PlaybackBar({
   isPlaying, onPlay, onPause, onRestart,
@@ -16,17 +17,17 @@ export default function PlaybackBar({
           onClick={isPlaying ? onPause : onPlay}
           title={isPlaying ? 'Pause' : 'Play'}
         >
-          {isPlaying ? '⏸' : '▶'}
+          {isPlaying ? <IconPause size={10} /> : <IconPlay size={10} />}
         </button>
         <button className="pb-btn" onClick={onRestart} title="Restart simulation">
-          ↺
+          <IconRestart size={11} />
         </button>
         <button
           className={`pb-btn ${loop ? 'pb-btn-active' : ''}`}
           onClick={onLoopToggle}
           title="Toggle loop"
         >
-          ⟳
+          <IconLoop size={11} />
         </button>
         <span className="pb-frame" title="Frame counter">
           F&thinsp;{String(frameCount).padStart(5, '0')}

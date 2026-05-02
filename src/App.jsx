@@ -6,6 +6,7 @@ import PlaybackBar    from './components/PlaybackBar';
 import ExportModal    from './components/ExportModal';
 import { EFFECTS }   from './effects';
 import { getUserPresets, saveUserPreset, deleteUserPreset } from './effects/presets';
+import { IconLogoMark } from './icons';
 import './App.css';
 
 const ACCENTS = {
@@ -101,7 +102,7 @@ export default function App() {
     <div className="app" style={ACCENTS[accentKey]}>
       <header className="app-header">
         <div className="logo">
-          <span className="logo-icon">⬡</span>
+          <span className="logo-icon"><IconLogoMark size={20} /></span>
           <span className="logo-text">FIRECRACKER</span>
         </div>
         <div className="header-tagline">VFX Generator</div>

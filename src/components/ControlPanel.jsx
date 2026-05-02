@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import ParameterSlider from './ParameterSlider';
 import PresetPanel from './PresetPanel';
+import { IconRandomize, IconReset, IconExport } from '../icons';
 
 export default function ControlPanel({
   effectDef, params, onChange,
@@ -64,13 +65,13 @@ export default function ControlPanel({
 
       <div className="panel-actions">
         <button className="action-btn randomize-btn" onClick={onRandomize}>
-          <span className="btn-icon">⟳</span> Randomize
+          <span className="btn-icon"><IconRandomize size={13} /></span> Randomize
         </button>
         <button className="action-btn reset-btn" onClick={onReset}>
-          <span className="btn-icon">↺</span> Reset
+          <span className="btn-icon"><IconReset size={13} /></span> Reset
         </button>
         <button className="action-btn export-btn" onClick={onExport}>
-          <span className="btn-icon">↓</span> Export…
+          <span className="btn-icon"><IconExport size={13} /></span> Export…
         </button>
       </div>
     </div>

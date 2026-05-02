@@ -13,7 +13,7 @@ export const EFFECTS = [
   {
     id: 'fire',
     label: 'Fire',
-    icon: '🔥',
+    icon: 'fire',
     factory: createFireEffect,
     defaults: {
       intensity:      65,
@@ -68,7 +68,7 @@ export const EFFECTS = [
   {
     id: 'sparks',
     label: 'Sparks',
-    icon: '✦',
+    icon: 'sparks',
     factory: createSparksEffect,
     defaults: {
       sparkCount:  30,
@@ -92,7 +92,7 @@ export const EFFECTS = [
   {
     id: 'glare',
     label: 'Glare / Bloom',
-    icon: '✸',
+    icon: 'glare',
     factory: createGlareEffect,
     defaults: {
       radius:       120,
@@ -114,7 +114,7 @@ export const EFFECTS = [
   {
     id: 'rays',
     label: 'Rays / God Rays',
-    icon: '☀',
+    icon: 'rays',
     factory: createRaysEffect,
     defaults: {
       rayCount:   8,
@@ -136,7 +136,7 @@ export const EFFECTS = [
   {
     id: 'smoke',
     label: 'Smoke / Mist',
-    icon: '◎',
+    icon: 'smoke',
     factory: createSmokeEffect,
     defaults: {
       density:    40,
@@ -158,7 +158,7 @@ export const EFFECTS = [
   {
     id: 'embers',
     label: 'Embers',
-    icon: '·',
+    icon: 'embers',
     factory: createEmbersEffect,
     defaults: {
       intensity: 50,
@@ -178,7 +178,7 @@ export const EFFECTS = [
   {
     id: 'energyPulse',
     label: 'Energy Pulse',
-    icon: '◉',
+    icon: 'energyPulse',
     factory: createEnergyPulseEffect,
     defaults: {
       speed:     50,
@@ -198,7 +198,7 @@ export const EFFECTS = [
   {
     id: 'explosionRing',
     label: 'Explosion Ring',
-    icon: '◌',
+    icon: 'explosionRing',
     factory: createExplosionRingEffect,
     defaults: {
       force:     60,
@@ -218,7 +218,7 @@ export const EFFECTS = [
   {
     id: 'electricArc',
     label: 'Electric Arc',
-    icon: '⚡',
+    icon: 'electricArc',
     factory: createElectricArcEffect,
     defaults: {
       intensity: 60,
@@ -238,7 +238,7 @@ export const EFFECTS = [
   {
     id: 'dustBurst',
     label: 'Dust Burst',
-    icon: '❋',
+    icon: 'dustBurst',
     factory: createDustBurstEffect,
     defaults: {
       volume:  40,
