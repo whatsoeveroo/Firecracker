@@ -30,247 +30,232 @@ function rand(rng, min, max) {
   return min + rng() * (max - min);
 }
 
-function pick(rng, items) {
-  return items[Math.floor(rng() * items.length)];
-}
-
-function signedPowRandom(rng, power = 1.7) {
+function signedPowRandom(rng, power = 1.6) {
   return (rng() < 0.5 ? -1 : 1) * Math.pow(rng(), power);
 }
 
-function tempColor(temp, heat, alpha) {
-  const t = clamp01(temp / 100);
+function heatColor(temp, heat, alpha) {
   const h = clamp01(heat);
+  const t = clamp01(temp / 100);
 
   const cool = {
-    r: lerp(95, 255, h),
-    g: lerp(180, 255, h),
-    b: lerp(255, 235, h),
+    r: lerp(115, 235, h),
+    g: lerp(185, 252, h),
+    b: lerp(255, 255, h),
   };
-
-  const warm = {
-    r: 255,
-    g: lerp(34, 250, h),
-    b: lerp(6, 176, h),
-  };
-
   const neutral = {
     r: 255,
-    g: lerp(82, 246, h),
-    b: lerp(20, 205, h),
+    g: lerp(48, 238, h),
+    b: lerp(10, 188, h),
+  };
+  const warm = {
+    r: 255,
+    g: lerp(26, 244, h),
+    b: lerp(4, 132, h),
   };
 
-  const coldBlend = Math.max(0, 0.5 - t) * 2;
-  const warmBlend = Math.max(0, t - 0.5) * 2;
-  const base = coldBlend > 0
+  const coldMix = Math.max(0, 0.5 - t) * 2;
+  const warmMix = Math.max(0, t - 0.5) * 2;
+  const c = coldMix > 0
     ? {
-        r: lerp(neutral.r, cool.r, coldBlend),
-        g: lerp(neutral.g, cool.g, coldBlend),
-        b: lerp(neutral.b, cool.b, coldBlend),
+        r: lerp(neutral.r, cool.r, coldMix),
+        g: lerp(neutral.g, cool.g, coldMix),
+        b: lerp(neutral.b, cool.b, coldMix),
       }
     : {
-        r: lerp(neutral.r, warm.r, warmBlend),
-        g: lerp(neutral.g, warm.g, warmBlend),
-        b: lerp(neutral.b, warm.b, warmBlend),
+        r: lerp(neutral.r, warm.r, warmMix),
+        g: lerp(neutral.g, warm.g, warmMix),
+        b: lerp(neutral.b, warm.b, warmMix),
       };
 
-  return `rgba(${Math.round(base.r)},${Math.round(base.g)},${Math.round(base.b)},${alpha.toFixed(3)})`;
+  return `rgba(${Math.round(c.r)},${Math.round(c.g)},${Math.round(c.b)},${alpha.toFixed(3)})`;
 }
 
-function createBurstShape(cx, cy, params, rng) {
+function makeBurst(params, rng, cx, cy) {
   const direction = param(params, 'direction', -90) * Math.PI / 180;
-  const spread = param(params, 'spreadAngle', 60) * Math.PI / 180;
-  const scatter = param(params, 'chaos', 42) / 100;
-  const directional = param(params, 'directionalBurst', 70) / 100;
-  const clusterCount = Math.max(2, Math.round(lerp(2, 7, scatter)));
+  const spread = param(params, 'spreadAngle', 50) * Math.PI / 180;
+  const scatter = param(params, 'chaos', 40) / 100;
+  const directional = param(params, 'directionalBurst', 72) / 100;
+  const clusterCount = Math.max(2, Math.round(lerp(2, 6, scatter)));
   const clusters = [];
 
   for (let i = 0; i < clusterCount; i++) {
-    const centered = signedPowRandom(rng, lerp(0.65, 2.9, directional));
-    const rogue = rng() < scatter * 0.16;
+    const rogue = rng() < scatter * 0.13;
+    const centered = signedPowRandom(rng, lerp(0.7, 3.2, directional));
     clusters.push({
       angle: rogue ? direction + rand(rng, -Math.PI, Math.PI) : direction + centered * spread * 0.5,
-      weight: rand(rng, 0.55, 1.7),
-      velocity: rand(rng, 0.72, 1.34),
-      spread: spread * rand(rng, 0.035, lerp(0.22, 0.055, directional)),
-      originX: cx + rand(rng, -13, 13) * scatter,
-      originY: cy + rand(rng, -5, 5) * scatter,
+      spread: spread * rand(rng, 0.05, lerp(0.25, 0.055, directional)),
+      speed: rand(rng, 0.7, 1.35),
+      weight: rand(rng, 0.72, 1.35),
+      x: cx + rand(rng, -9, 9) * scatter,
+      y: cy + rand(rng, -4, 4) * scatter,
     });
   }
 
-  return { direction, spread, scatter, directional, clusters };
+  return { direction, scatter, directional, clusters };
 }
 
-function spawnSpark(cx, cy, params, type, burst, rng) {
-  const length = param(params, 'length', 86);
-  const exposure = param(params, 'brightness', 88);
-  const burnout = param(params, 'decay', 54);
-  const trailWidth = param(params, 'trailWidth', 45) / 100;
-  const trailLength = param(params, 'trailLength', 58) / 100;
-  const colorTemp = param(params, 'colorTemp', 58);
-  const cluster = pick(rng, burst.clusters);
-  const typeFocus = type === 'needle' ? 3.2 : type === 'fragment' ? 1.7 : type === 'ember' ? 1.25 : 0.8;
-  const angle = cluster.angle + signedPowRandom(rng, typeFocus) * cluster.spread + rand(rng, -0.018, 0.018) * burst.scatter;
+function chooseCluster(clusters, rng) {
+  return clusters[Math.floor(rng() * clusters.length)];
+}
 
-  const speedShape = type === 'needle' ? rand(rng, 1.05, 1.72)
-                   : type === 'fragment' ? rand(rng, 0.38, 0.88)
-                   : type === 'ember' ? rand(rng, 0.16, 0.38)
-                   : rand(rng, 0.12, 0.48);
-  const speed = (110 + length * 10.8) * speedShape * cluster.velocity;
-  const jitter = type === 'micro' ? 5 : type === 'ember' ? 10 : 13;
+function spawnParticle(params, rng, burst, type) {
+  const velocity = param(params, 'length', 90);
+  const exposure = param(params, 'brightness', 88) / 100;
+  const particleLife = param(params, 'particleLife', 46) / 100;
+  const burnout = param(params, 'decay', 56) / 100;
+  const trailLength = param(params, 'trailLength', 55) / 100;
+  const trailWidth = param(params, 'trailWidth', 32) / 100;
+  const heatTemp = param(params, 'colorTemp', 58);
+  const scatter = param(params, 'chaos', 40) / 100;
+  const cluster = chooseCluster(burst.clusters, rng);
 
-  const lifeBase = type === 'needle' ? rand(rng, 0.16, 0.38)
-                 : type === 'fragment' ? rand(rng, 0.48, 1.12)
-                 : type === 'ember' ? rand(rng, 0.9, 1.95)
-                 : rand(rng, 0.08, 0.24);
-  const life = lifeBase * lerp(1.55, 0.52, burnout / 100);
+  const focus = type === 'needle' ? 3.1 : type === 'fragment' ? 1.55 : 0.85;
+  const angle = cluster.angle + signedPowRandom(rng, focus) * cluster.spread + rand(rng, -0.055, 0.055) * scatter;
+  const speedScale = type === 'needle' ? rand(rng, 1.05, 1.82)
+                   : type === 'fragment' ? rand(rng, 0.38, 0.95)
+                   : rand(rng, 0.14, 0.52);
+  const speed = (120 + velocity * 10.3) * speedScale * cluster.speed;
 
+  const baseLife = type === 'needle' ? rand(rng, 0.11, 0.32)
+                 : type === 'fragment' ? rand(rng, 0.42, 1.02)
+                 : rand(rng, 0.055, 0.18);
+  const life = baseLife * lerp(0.35, 2.2, particleLife);
+  const mass = type === 'needle' ? rand(rng, 0.45, 0.9)
+             : type === 'fragment' ? rand(rng, 1.15, 2.85)
+             : rand(rng, 0.22, 0.62);
+
+  const jitter = type === 'micro' ? 4.5 : 9;
   return {
     type,
-    x: cluster.originX + rand(rng, -jitter, jitter) * 0.65,
-    y: cluster.originY + rand(rng, -jitter, jitter) * 0.22,
+    x: cluster.x + rand(rng, -jitter, jitter),
+    y: cluster.y + rand(rng, -jitter * 0.28, jitter * 0.28),
     vx: Math.cos(angle) * speed,
     vy: Math.sin(angle) * speed,
     age: 0,
     life,
-    heat: type === 'needle' ? rand(rng, 0.86, 1)
-        : type === 'fragment' ? rand(rng, 0.58, 0.95)
-        : type === 'ember' ? rand(rng, 0.26, 0.62)
-        : rand(rng, 0.48, 0.9),
-    mass: type === 'needle' ? rand(rng, 0.45, 0.95)
-        : type === 'fragment' ? rand(rng, 1.25, 2.8)
-        : type === 'ember' ? rand(rng, 1.8, 3.6)
-        : rand(rng, 0.25, 0.75),
-    flicker: rand(rng, 0, TAU),
-    shimmer: rand(rng, 22, 72),
-    width: (type === 'needle' ? rand(rng, 0.42, 1.02)
-        : type === 'fragment' ? rand(rng, 0.9, 2.6)
-        : type === 'ember' ? rand(rng, 1.0, 2.9)
-        : rand(rng, 0.22, 0.68)) * lerp(0.55, 2.25, trailWidth),
-    glow: exposure / 100 * cluster.weight,
-    colorTemp,
-    maxTrail: Math.round((type === 'needle' ? 12 : type === 'fragment' ? 16 : type === 'ember' ? 24 : 6) * lerp(0.45, 1.75, trailLength)),
+    heat: type === 'needle' ? rand(rng, 0.84, 1)
+        : type === 'fragment' ? rand(rng, 0.46, 0.92)
+        : rand(rng, 0.55, 1),
+    cooling: lerp(0.75, 2.6, burnout) * (type === 'micro' ? 1.65 : 1),
+    mass,
+    width: (type === 'needle' ? rand(rng, 0.32, 0.86)
+        : type === 'fragment' ? rand(rng, 0.82, 2.25)
+        : rand(rng, 0.18, 0.5)) * lerp(0.55, 2.1, trailWidth),
+    trailMax: Math.max(2, Math.round((type === 'needle' ? 12 : type === 'fragment' ? 18 : 5) * lerp(0.35, 1.8, trailLength))),
+    glow: exposure * cluster.weight,
+    colorTemp: heatTemp,
+    noisePhase: rand(rng, 0, TAU),
+    noiseRate: rand(rng, 9, 31),
     bounced: false,
     trail: [],
   };
 }
 
 function spawnBurst(cx, cy, params, rng) {
-  const sparkCount = param(params, 'sparkCount', 46);
-  const fragmentWeight = param(params, 'fragmentWeight', 48) / 100;
-  const microAmount = param(params, 'microAmount', 48) / 100;
-  const flashSize = param(params, 'flashSize', 66);
-  const burst = createBurstShape(cx, cy, params, rng);
+  const count = param(params, 'sparkCount', 52);
+  const fragmentWeight = param(params, 'fragmentWeight', 44) / 100;
+  const microAmount = param(params, 'microAmount', 38) / 100;
+  const flashCore = param(params, 'flashSize', 62);
+  const burst = makeBurst(params, rng, cx, cy);
   const particles = [];
 
-  const needleCount = Math.max(2, Math.round(sparkCount * lerp(0.44, 0.18, fragmentWeight)));
-  const fragmentCount = Math.max(2, Math.round(sparkCount * lerp(0.28, 0.86, fragmentWeight)));
-  const microCount = Math.round(sparkCount * lerp(0.1, 1.25, microAmount));
-  const emberCount = Math.round(fragmentCount * lerp(0.18, 0.62, fragmentWeight));
+  const needles = Math.max(1, Math.round(count * lerp(0.48, 0.18, fragmentWeight)));
+  const fragments = Math.max(1, Math.round(count * lerp(0.24, 0.82, fragmentWeight)));
+  const micros = Math.round(count * lerp(0.05, 1.1, microAmount));
 
-  for (let i = 0; i < needleCount; i++) particles.push(spawnSpark(cx, cy, params, 'needle', burst, rng));
-  for (let i = 0; i < fragmentCount; i++) particles.push(spawnSpark(cx, cy, params, 'fragment', burst, rng));
-  for (let i = 0; i < microCount; i++) particles.push(spawnSpark(cx, cy, params, 'micro', burst, rng));
-  for (let i = 0; i < emberCount; i++) particles.push(spawnSpark(cx, cy, params, 'ember', burst, rng));
+  for (let i = 0; i < needles; i++) particles.push(spawnParticle(params, rng, burst, 'needle'));
+  for (let i = 0; i < fragments; i++) particles.push(spawnParticle(params, rng, burst, 'fragment'));
+  for (let i = 0; i < micros; i++) particles.push(spawnParticle(params, rng, burst, 'micro'));
 
-  return {
-    particles,
-    flash: flashSize > 0 ? {
-      cx,
-      cy,
-      age: 0,
-      life: lerp(0.04, 0.17, flashSize / 100),
-      size: 24 + flashSize * 3.2,
-      angle: burst.direction,
-      directional: burst.directional,
-      scatter: burst.scatter,
-    } : null,
-  };
+  const flash = flashCore > 0 ? {
+    x: cx,
+    y: cy,
+    angle: burst.direction,
+    age: 0,
+    life: lerp(0.028, 0.105, flashCore / 100),
+    size: lerp(6, 34, flashCore / 100),
+    energy: flashCore / 100,
+    directional: burst.directional,
+    scatter: burst.scatter,
+    rays: Array.from({ length: Math.round(lerp(3, 9, flashCore / 100)) }, () => ({
+      a: burst.direction + signedPowRandom(rng, 1.5) * lerp(0.25, 0.95, 1 - burst.directional) + rand(rng, -0.18, 0.18) * burst.scatter,
+      l: rand(rng, 0.45, 1.25),
+      w: rand(rng, 0.45, 1.25),
+    })),
+  } : null;
+
+  return { particles, flash };
 }
 
 function drawFlash(ctx, flash, params) {
   const exposure = param(params, 'brightness', 88) / 100;
-  const colorTemp = param(params, 'colorTemp', 58);
-  const life = 1 - clamp01(flash.age / flash.life);
-  const a = Math.pow(life, 2.1) * exposure;
+  const temp = param(params, 'colorTemp', 58);
+  const n = clamp01(flash.age / flash.life);
+  const alive = Math.pow(1 - n, 2.4) * exposure * flash.energy;
+  if (alive <= 0.01) return;
 
   ctx.save();
   ctx.globalCompositeOperation = 'screen';
-  ctx.translate(flash.cx, flash.cy);
-  ctx.rotate(flash.angle);
 
-  ctx.save();
-  ctx.scale(lerp(1.15, 3.45, flash.directional), lerp(1.15, 0.46, flash.directional));
-  const cone = ctx.createRadialGradient(flash.size * 0.14, 0, 0, 0, 0, flash.size);
-  cone.addColorStop(0, tempColor(colorTemp, 1, Math.min(1, a * 1.35)));
-  cone.addColorStop(0.16, `rgba(255,255,255,${Math.min(1, a * 0.65).toFixed(3)})`);
-  cone.addColorStop(0.34, tempColor(colorTemp, 0.72, a * 0.48));
-  cone.addColorStop(0.72, tempColor(colorTemp, 0.22, a * 0.13));
-  cone.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = cone;
+  const core = ctx.createRadialGradient(flash.x, flash.y, 0, flash.x, flash.y, flash.size);
+  core.addColorStop(0, `rgba(255,255,255,${Math.min(1, alive * 1.65).toFixed(3)})`);
+  core.addColorStop(0.22, heatColor(temp, 1, alive * 0.92));
+  core.addColorStop(0.58, heatColor(temp, 0.45, alive * 0.28));
+  core.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = core;
   ctx.beginPath();
-  ctx.arc(0, 0, flash.size, 0, TAU);
+  ctx.arc(flash.x, flash.y, flash.size, 0, TAU);
   ctx.fill();
-  ctx.restore();
 
+  ctx.translate(flash.x, flash.y);
+  ctx.rotate(flash.angle);
   ctx.lineCap = 'round';
-  ctx.strokeStyle = tempColor(colorTemp, 1, a * 0.82);
-  ctx.lineWidth = Math.max(1, flash.size * 0.014);
-  ctx.beginPath();
-  ctx.moveTo(-flash.size * 0.14, 0);
-  ctx.lineTo(flash.size * lerp(0.85, 1.95, flash.directional), 0);
-  ctx.stroke();
-
-  ctx.strokeStyle = `rgba(255,245,220,${(a * 0.24).toFixed(3)})`;
-  ctx.lineWidth = Math.max(1, flash.size * 0.007);
-  for (const off of [-0.32, 0.28, 0.58]) {
+  for (const ray of flash.rays) {
+    const len = flash.size * lerp(0.9, 2.8, flash.directional) * ray.l;
+    const side = Math.sin(ray.a - flash.angle) * flash.size * 0.25 * flash.scatter;
+    ctx.save();
+    ctx.rotate(ray.a - flash.angle);
+    ctx.strokeStyle = heatColor(temp, 1, alive * 0.58);
+    ctx.lineWidth = Math.max(0.7, flash.size * 0.035 * ray.w);
     ctx.beginPath();
-    ctx.moveTo(flash.size * 0.04, 0);
-    ctx.lineTo(flash.size * lerp(0.35, 1.1, flash.directional), flash.size * off * (0.45 + flash.scatter));
+    ctx.moveTo(-flash.size * 0.12, side * 0.15);
+    ctx.lineTo(len, side);
     ctx.stroke();
+    ctx.restore();
   }
 
   ctx.restore();
 }
 
-function drawSpark(ctx, p, exposure) {
+function drawParticle(ctx, p, exposure) {
   const n = clamp01(p.age / p.life);
   const alive = 1 - n;
   const speed = Math.hypot(p.vx, p.vy);
-  const speedGlow = clamp01(speed / 980);
-  const coolCurve = p.type === 'ember' ? Math.pow(alive, 2.8) : Math.pow(alive, 1.65);
-  const flicker = 0.78 + Math.sin(p.age * p.shimmer + p.flicker) * 0.22;
-  const heat = clamp01((p.heat * coolCurve + speedGlow * 0.32) * flicker);
-  const burnout = p.type === 'needle' ? Math.pow(alive, 1.05)
-                : p.type === 'micro' ? Math.pow(alive, 2.4)
-                : p.type === 'ember' ? Math.pow(alive, 2.15)
-                : Math.pow(alive, 1.55);
-  const alpha = burnout * p.glow;
-  const trail = p.trail;
+  const cooling = Math.pow(alive, p.cooling);
+  const heat = clamp01(p.heat * cooling + clamp01(speed / 1250) * 0.25);
+  const alpha = Math.pow(alive, p.type === 'micro' ? 2.15 : 1.3) * p.glow;
 
-  if (trail.length > 1) {
+  if (p.trail.length > 1) {
     ctx.lineCap = p.type === 'needle' ? 'butt' : 'round';
-    ctx.lineJoin = 'round';
+    for (let i = 1; i < p.trail.length; i++) {
+      const a = p.trail[i - 1];
+      const b = p.trail[i];
+      const t = i / (p.trail.length - 1);
+      const localHeat = clamp01(heat * (0.12 + t * 1.05));
+      const segAlpha = alpha * Math.pow(t, p.type === 'needle' ? 2.0 : 1.25) * (p.type === 'micro' ? 0.45 : 1);
+      const width = Math.max(0.16, p.width * Math.pow(t, 1.28));
 
-    for (let i = 1; i < trail.length; i++) {
-      const a = trail[i - 1];
-      const b = trail[i];
-      const t = i / (trail.length - 1);
-      const localHeat = clamp01(heat * (0.15 + t * 0.95));
-      const tailCooling = Math.pow(t, p.type === 'needle' ? 1.9 : 1.25);
-      const segAlpha = alpha * tailCooling * (p.type === 'micro' ? 0.48 : 1);
-      const width = Math.max(0.18, p.width * Math.pow(t, 1.35) * (p.type === 'needle' ? 0.92 : 1));
-
-      ctx.strokeStyle = tempColor(p.colorTemp, localHeat, segAlpha);
+      ctx.strokeStyle = heatColor(p.colorTemp, localHeat, segAlpha);
       ctx.lineWidth = width;
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
       ctx.lineTo(b.x, b.y);
       ctx.stroke();
 
-      if (exposure > 0.82 && t > 0.74 && p.type !== 'ember') {
-        ctx.strokeStyle = `rgba(220,245,255,${((exposure - 0.82) * 1.8 * segAlpha).toFixed(3)})`;
-        ctx.lineWidth = Math.max(0.15, width * 0.34);
+      if (exposure > 0.88 && t > 0.78 && p.type === 'needle') {
+        ctx.strokeStyle = `rgba(220,245,255,${((exposure - 0.88) * 2.4 * segAlpha).toFixed(3)})`;
+        ctx.lineWidth = Math.max(0.12, width * 0.28);
         ctx.beginPath();
         ctx.moveTo(a.x, a.y);
         ctx.lineTo(b.x, b.y);
@@ -279,28 +264,18 @@ function drawSpark(ctx, p, exposure) {
     }
   }
 
-  const hotHead = p.type !== 'ember' && alpha > 0.03;
-  if (hotHead) {
-    const coreLen = Math.max(1.5, Math.min(28, speed * 0.018));
-    const ang = Math.atan2(p.vy, p.vx);
-    ctx.save();
-    ctx.translate(p.x, p.y);
-    ctx.rotate(ang);
-    ctx.fillStyle = exposure > 0.88 ? `rgba(225,245,255,${Math.min(1, alpha).toFixed(3)})` : tempColor(p.colorTemp, 1, Math.min(1, alpha));
-    ctx.beginPath();
-    ctx.ellipse(0, 0, coreLen, Math.max(0.32, p.width * 0.36), 0, 0, TAU);
-    ctx.fill();
-    ctx.restore();
-  }
+  if (alpha <= 0.01) return;
 
-  const headSize = p.type === 'needle' ? 2.7 : p.type === 'fragment' ? 3.8 : p.type === 'ember' ? 3.2 : 1.35;
-  const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, headSize * (1 + speedGlow));
-  grad.addColorStop(0, tempColor(p.colorTemp, hotHead ? 1 : heat, Math.min(1, alpha * 1.1)));
-  grad.addColorStop(0.42, tempColor(p.colorTemp, heat * 0.62, alpha * 0.34));
-  grad.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = grad;
+  const head = p.type === 'needle' ? 2.2 : p.type === 'fragment' ? 3.4 : 1.25;
+  const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, head);
+  g.addColorStop(0, exposure > 0.9 && p.type === 'needle'
+    ? `rgba(235,248,255,${Math.min(1, alpha).toFixed(3)})`
+    : heatColor(p.colorTemp, 1, Math.min(1, alpha)));
+  g.addColorStop(0.5, heatColor(p.colorTemp, heat, alpha * 0.38));
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
   ctx.beginPath();
-  ctx.arc(p.x, p.y, headSize * (1 + speedGlow), 0, TAU);
+  ctx.arc(p.x, p.y, head, 0, TAU);
   ctx.fill();
 }
 
@@ -329,15 +304,15 @@ export function createSparksEffect() {
       const cx = canvas.width / 2;
       const cy = canvas.height / 2;
       const exposure = param(params, 'brightness', 88) / 100;
-      const burstRate = lerp(0.48, 0.16, exposure);
-      const gravity = lerp(0, 1180, param(params, 'gravity', 45) / 100);
-      const airDrag = lerp(0.02, 1.85, param(params, 'airDrag', 42) / 100);
-      const scatter = param(params, 'chaos', 42) / 100;
+      const burstRate = lerp(0.5, 0.18, exposure);
+      const gravity = lerp(0, 1150, param(params, 'gravity', 44) / 100);
+      const airDrag = lerp(0.02, 1.75, param(params, 'airDrag', 36) / 100);
+      const scatter = param(params, 'chaos', 40) / 100;
       const bounce = param(params, 'deflection', 0) / 100;
       const floorY = cy + canvas.height * 0.33;
 
       burstTimer += dt;
-      if (burstTimer > burstRate) {
+      if (burstTimer >= burstRate) {
         burstTimer = 0;
         const burst = spawnBurst(cx, cy, params, rng);
         particles.push(...burst.particles);
@@ -366,30 +341,29 @@ export function createSparksEffect() {
         }
 
         const drag = Math.max(0, 1 - airDrag * dt / p.mass);
-        const swirl = Math.sin(p.age * (11 + scatter * 28) + p.flicker) * scatter * 28;
-        const randomKick = (rng() - 0.5) * scatter * 34;
-        p.vx = (p.vx + (swirl + randomKick) * dt) * drag;
+        const drift = Math.sin(p.age * p.noiseRate + p.noisePhase) * scatter * 42;
+        const kick = (rng() - 0.5) * scatter * 28;
+        p.vx = (p.vx + (drift + kick) * dt) * drag;
         p.vy = (p.vy + gravity * dt * p.mass) * drag;
         p.x += p.vx * dt;
         p.y += p.vy * dt;
 
-        if (bounce > 0 && !p.bounced && p.y > floorY && p.vy > 40 && p.type !== 'micro' && p.type !== 'needle') {
+        if (bounce > 0 && !p.bounced && p.y > floorY && p.vy > 45 && p.type === 'fragment') {
           p.y = floorY;
-          p.vy *= -lerp(0.12, 0.48, bounce) / p.mass;
-          p.vx *= lerp(0.55, 0.88, bounce) * (rng() < 0.5 ? 1 : -1);
-          p.life *= lerp(0.55, 0.78, bounce);
-          p.heat *= 0.68;
+          p.vy *= -lerp(0.12, 0.42, bounce) / p.mass;
+          p.vx *= lerp(0.5, 0.88, bounce) * (rng() < 0.5 ? -1 : 1);
+          p.life *= lerp(0.55, 0.82, bounce);
+          p.heat *= 0.62;
           p.bounced = true;
         }
 
         p.trail.push({ x: p.x, y: p.y });
-        while (p.trail.length > p.maxTrail) p.trail.shift();
-
-        drawSpark(ctx, p, exposure);
+        while (p.trail.length > p.trailMax) p.trail.shift();
+        drawParticle(ctx, p, exposure);
       }
 
-      if (particles.length > 980) particles.splice(0, particles.length - 980);
-      if (flashes.length > 8) flashes.splice(0, flashes.length - 8);
+      if (particles.length > 900) particles.splice(0, particles.length - 900);
+      if (flashes.length > 5) flashes.splice(0, flashes.length - 5);
 
       ctx.restore();
     },
