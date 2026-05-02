@@ -104,7 +104,24 @@ export const EFFECT_ICONS = {
 
 /* ─── Logo Mark ─────────────────────────────────────────────────────── */
 
-/* Main header mark: angular 3-pronged flame burst with spark shards */
+/*
+  V1 "Spark Crown" — CHOSEN
+  Three upward tines (crown/flame) + single sharp downward ignition spike.
+  10-vertex polygon. Reads immediately as fire+ignition at any size.
+  Path: center tine (10,0) flanked by two outer tines (1.5,5) and (18.5,5),
+  connected by valleys, body narrows to ignition spike at (10,20).
+
+  V2 "Radiant Shard" (not used):
+  M10,0.5 L11.5,6.3 L16.7,3.3 L13.7,8.5 L19.5,10 L13.7,11.5 L16.7,16.7
+  L11.5,13.7 L10,19.5 L8.5,13.7 L3.3,16.7 L6.3,11.5 L0.5,10 L6.3,8.5
+  L3.3,3.3 L8.5,6.3Z  — clean 8-pt starburst, too generic as a logo mark.
+
+  V3 "Ignition Core" (not used):
+  fillRule="evenodd"
+  M10,0.5 L12.5,5.7 L18.2,5.2 L15,10 L18.2,14.8 L12.5,14.3 L10,19.5
+  L7.5,14.3 L1.8,14.8 L5,10 L1.8,5.2 L7.5,5.7Z M10,7 L13,10 L10,13 L7,10Z
+  — 6-pt star with diamond eye cutout, reads more as badge/gem than ignition.
+*/
 export const IconLogoMark = ({ size = 20, style, className }) => (
   <svg
     width={size} height={size}
@@ -114,10 +131,7 @@ export const IconLogoMark = ({ size = 20, style, className }) => (
     style={{ display: 'block', flexShrink: 0, ...style }}
     className={className}
   >
-    {/* Outer burst shards */}
-    <path opacity="0.55" d="M10 0L11.5 4.5L15.5 1.5L13.5 6L18 5.5L14.5 8.5L18.5 11L14 10.5L16 15L12 12.5L10 17L8 12.5L4 15L6 10.5L1.5 11L5.5 8.5L2 5.5L6.5 6L4.5 1.5L8.5 4.5Z"/>
-    {/* Inner flame core */}
-    <path d="M10 3L12 7.5L15.5 5.5L13 11L10 19L7 11L4.5 5.5L8 7.5Z"/>
+    <path d="M10,0 L14,8.5 L18.5,5 L15,13 L11.5,13.5 L10,20 L8.5,13.5 L5,13 L1.5,5 L6,8.5Z"/>
   </svg>
 );
 
