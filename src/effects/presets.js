@@ -86,19 +86,35 @@ export const BUILT_IN_PRESETS = {
   sparks: [
     {
       name: 'Gun Muzzle Flash',
-      params: { sparkCount: 48, spreadAngle: 22, length: 95, brightness: 96, decay: 78, direction: -90, flashSize: 88 },
+      params: {
+        sparkCount: 58, spreadAngle: 18, length: 118, brightness: 98, decay: 82,
+        direction: -90, flashSize: 92, gravity: 30, airDrag: 22, chaos: 18,
+        trailWidth: 42, colorTemp: 60,
+      },
     },
     {
       name: 'Sci-fi Flash',
-      params: { sparkCount: 62, spreadAngle: 180, length: 72, brightness: 85, decay: 48, direction: -90, flashSize: 72 },
+      params: {
+        sparkCount: 72, spreadAngle: 145, length: 92, brightness: 90, decay: 46,
+        direction: -90, flashSize: 78, gravity: 12, airDrag: 36, chaos: 52,
+        trailWidth: 38, colorTemp: 28,
+      },
     },
     {
       name: 'Welding Sparks',
-      params: { sparkCount: 22, spreadAngle: 38, length: 45, brightness: 68, decay: 65, direction: -45, flashSize: 30 },
+      params: {
+        sparkCount: 42, spreadAngle: 44, length: 72, brightness: 86, decay: 58,
+        direction: -42, flashSize: 38, gravity: 72, airDrag: 50, chaos: 30,
+        trailWidth: 34, colorTemp: 66,
+      },
     },
     {
       name: 'Fireworks Burst',
-      params: { sparkCount: 70, spreadAngle: 360, length: 88, brightness: 78, decay: 30, direction: -90, flashSize: 55 },
+      params: {
+        sparkCount: 86, spreadAngle: 360, length: 105, brightness: 84, decay: 28,
+        direction: -90, flashSize: 64, gravity: 52, airDrag: 24, chaos: 72,
+        trailWidth: 50, colorTemp: 54,
+      },
     },
   ],
 
