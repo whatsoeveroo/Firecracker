@@ -89,9 +89,10 @@ export const BUILT_IN_PRESETS = {
       params: {
         sparkCount: 28, spreadAngle: 15, direction: -90, length: 142,
         particleLife: 18, gravity: 16, airDrag: 18, chaos: 36,
-        brightness: 100, flashSize: 86, decay: 92, trailLength: 22,
-        trailWidth: 18, fragmentWeight: 12, microAmount: 34, colorTemp: 58,
-        directionalBurst: 98, deflection: 0, randomSeed: 1101,
+        brightness: 100, flashSize: 88, gasPlume: 92, smokeAmount: 52,
+        smokeDrift: 48, lensFlare: 42, spillGlow: 62, decay: 92,
+        trailLength: 22, trailWidth: 18, fragmentWeight: 12, microAmount: 34,
+        colorTemp: 58, directionalBurst: 98, deflection: 0, randomSeed: 1101,
       },
     },
     {
@@ -99,9 +100,10 @@ export const BUILT_IN_PRESETS = {
       params: {
         sparkCount: 58, spreadAngle: 72, direction: -90, length: 128,
         particleLife: 36, gravity: 6, airDrag: 26, chaos: 30,
-        brightness: 96, flashSize: 58, decay: 66, trailLength: 58,
-        trailWidth: 14, fragmentWeight: 8, microAmount: 54, colorTemp: 12,
-        directionalBurst: 88, deflection: 0, randomSeed: 2402,
+        brightness: 96, flashSize: 58, gasPlume: 46, smokeAmount: 8,
+        smokeDrift: 22, lensFlare: 78, spillGlow: 36, decay: 66,
+        trailLength: 58, trailWidth: 14, fragmentWeight: 8, microAmount: 54,
+        colorTemp: 12, directionalBurst: 88, deflection: 0, randomSeed: 2402,
       },
     },
     {
@@ -109,9 +111,10 @@ export const BUILT_IN_PRESETS = {
       params: {
         sparkCount: 86, spreadAngle: 68, direction: -35, length: 70,
         particleLife: 58, gravity: 92, airDrag: 54, chaos: 64,
-        brightness: 88, flashSize: 26, decay: 46, trailLength: 42,
-        trailWidth: 30, fragmentWeight: 78, microAmount: 92, colorTemp: 74,
-        directionalBurst: 58, deflection: 48, randomSeed: 3303,
+        brightness: 88, flashSize: 24, gasPlume: 8, smokeAmount: 28,
+        smokeDrift: 54, lensFlare: 8, spillGlow: 18, decay: 46,
+        trailLength: 42, trailWidth: 30, fragmentWeight: 78, microAmount: 92,
+        colorTemp: 74, directionalBurst: 58, deflection: 48, randomSeed: 3303,
       },
     },
     {
@@ -119,9 +122,10 @@ export const BUILT_IN_PRESETS = {
       params: {
         sparkCount: 96, spreadAngle: 360, direction: -90, length: 112,
         particleLife: 86, gravity: 56, airDrag: 18, chaos: 74,
-        brightness: 84, flashSize: 42, decay: 20, trailLength: 92,
-        trailWidth: 42, fragmentWeight: 58, microAmount: 38, colorTemp: 56,
-        directionalBurst: 0, deflection: 0, randomSeed: 4404,
+        brightness: 84, flashSize: 42, gasPlume: 14, smokeAmount: 18,
+        smokeDrift: 36, lensFlare: 6, spillGlow: 18, decay: 20,
+        trailLength: 92, trailWidth: 42, fragmentWeight: 58, microAmount: 38,
+        colorTemp: 56, directionalBurst: 0, deflection: 0, randomSeed: 4404,
       },
     },
   ],
