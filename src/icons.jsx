@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 /* Custom icon set — bold geometric angular style */
 
 const Ico = ({ size = 16, children, viewBox = "0 0 16 16", style, className }) => (

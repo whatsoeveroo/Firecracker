@@ -348,6 +348,39 @@ html, body, #root {
 .select-input:focus  { border-color: var(--accent); }
 .select-input option { background: #18181e; color: var(--text); }
 
+/* ── Param groups ── */
+.param-group {
+  margin-bottom: 4px;
+}
+
+.param-group-label {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  opacity: 0.6;
+  padding: 10px 0 3px;
+  border-top: 1px solid var(--border-soft);
+  margin-top: 2px;
+}
+
+.param-group:first-child .param-group-label {
+  border-top: none;
+  padding-top: 0;
+  margin-top: 0;
+}
+
+.param-subgroup-label {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  opacity: 0.68;
+  padding: 8px 0 0;
+}
+
 /* ── Advanced section ── */
 .advanced-section {
   margin-top: -8px;

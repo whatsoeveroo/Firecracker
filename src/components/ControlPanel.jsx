@@ -1,7 +1,30 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import ParameterSlider from './ParameterSlider';
 import PresetPanel from './PresetPanel';
 import { IconRandomize, IconReset, IconExport } from '../icons';
+
+function groupedParams(paramList) {
+  if (!paramList.some(p => p.group)) return [{ label: null, items: paramList }];
+  const groups = [];
+  let cur = null;
+  for (const p of paramList) {
+    const g = p.group || '';
+    if (!cur || cur.label !== g) { cur = { label: g, items: [] }; groups.push(cur); }
+    cur.items.push(p);
+  }
+  return groups;
+}
+
+function sectionedParams(items) {
+  const sections = [];
+  let cur = null;
+  for (const p of items) {
+    const label = p.subgroup || null;
+    if (!cur || cur.label !== label) { cur = { label, items: [] }; sections.push(cur); }
+    cur.items.push(p);
+  }
+  return sections;
+}
 
 export default function ControlPanel({
   effectDef, params, onChange,
@@ -13,6 +36,7 @@ export default function ControlPanel({
   const basicParams    = effectDef.params.filter(p => !p.advanced);
   const advancedParams = effectDef.params.filter(p =>  p.advanced);
   const hasAdvanced    = advancedParams.length > 0;
+  const groups         = groupedParams(basicParams);
 
   return (
     <div className="control-panel">
@@ -29,13 +53,23 @@ export default function ControlPanel({
 
       <div className="section-label" style={{ padding: '0 0 8px' }}>PARAMETERS</div>
       <div className="params-list">
-        {basicParams.map(param => (
-          <ParameterSlider
-            key={param.key}
-            param={param}
-            value={params[param.key]}
-            onChange={onChange}
-          />
+        {groups.map(({ label, items }) => (
+          <div key={label || '_ungrouped'} className={label ? 'param-group' : undefined}>
+            {label && <div className="param-group-label">{label}</div>}
+            {sectionedParams(items).map(({ label: subgroup, items: subItems }) => (
+              <Fragment key={subgroup || 'default'}>
+                {subgroup && <div className="param-subgroup-label">{subgroup}</div>}
+                {subItems.map(param => (
+                  <ParameterSlider
+                    key={param.key}
+                    param={param}
+                    value={params[param.key]}
+                    onChange={onChange}
+                  />
+                ))}
+              </Fragment>
+            ))}
+          </div>
         ))}
       </div>
 

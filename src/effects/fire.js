@@ -525,7 +525,9 @@ export function createFireEffect() {
             }
             ctx.putImageData(img, rx, ry);
           }
-        } catch (_) {}
+        } catch {
+          // Heat distortion is optional; ignore unsupported canvas readback paths.
+        }
       }
 
       ctx.restore();
