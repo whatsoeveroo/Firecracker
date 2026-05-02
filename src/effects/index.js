@@ -121,7 +121,7 @@ export const EFFECTS = [
       // ── COLOR SYSTEM ──
       { key: 'sparkColor', label: 'Spark Main Color', type: 'color', group: 'COLOR SYSTEM', subgroup: 'Spark Color' },
       {
-        key: 'mixColorEnabled', label: 'Secondary Color Mix', type: 'select', group: 'COLOR SYSTEM', subgroup: 'Spark Color',
+        key: 'mixColorEnabled', label: 'Secondary Color Mix', type: 'toggle', group: 'COLOR SYSTEM', subgroup: 'Spark Color',
         hint: 'blends an extra color into spark particles',
         options: [
           { value: 'off', label: 'Off' },
@@ -133,7 +133,7 @@ export const EFFECTS = [
       { key: 'flashSize',  label: 'Flash Core', min: 0, max: 100, group: 'COLOR SYSTEM', subgroup: 'Flash / Core' },
       { key: 'gasPlume', label: 'Gas Plume', min: 0, max: 100, group: 'COLOR SYSTEM', subgroup: 'Atmosphere Color' },
       {
-        key: 'gasColorEnabled', label: 'Gas / Plume Color', type: 'select', group: 'COLOR SYSTEM', subgroup: 'Atmosphere Color',
+        key: 'gasColorEnabled', label: 'Gas / Plume Color', type: 'toggle', group: 'COLOR SYSTEM', subgroup: 'Atmosphere Color',
         hint: 'enables tinting for the soft atmospheric plume',
         options: [
           { value: 'off', label: 'Off' },
@@ -143,7 +143,7 @@ export const EFFECTS = [
       { key: 'gasColor', label: 'Gas / Plume Tint', type: 'color', group: 'COLOR SYSTEM', subgroup: 'Atmosphere Color' },
       { key: 'smokeAmount', label: 'Smoke', min: 0, max: 100, group: 'COLOR SYSTEM', subgroup: 'Atmosphere Color' },
       {
-        key: 'smokeColorEnabled', label: 'Smoke Color', type: 'select', group: 'COLOR SYSTEM', subgroup: 'Atmosphere Color',
+        key: 'smokeColorEnabled', label: 'Smoke Color', type: 'toggle', group: 'COLOR SYSTEM', subgroup: 'Atmosphere Color',
         hint: 'controls the fading smoke color after sparks burn out',
         options: [
           { value: 'off', label: 'Off' },
