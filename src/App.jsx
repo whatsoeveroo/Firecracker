@@ -8,6 +8,24 @@ import { EFFECTS }   from './effects';
 import { getUserPresets, saveUserPreset, deleteUserPreset } from './effects/presets';
 import './App.css';
 
+const ACCENTS = {
+  orange:  { '--accent':'#e85d26','--accent-glow':'rgba(232,93,38,0.2)','--accent-dim':'#8a3010','--slider-fill':'#e85d26','--accent-bg-faint':'rgba(232,93,38,0.08)','--accent-bg-soft':'rgba(232,93,38,0.12)','--accent-bg-mid':'rgba(232,93,38,0.18)','--accent-bg-strong':'rgba(232,93,38,0.22)','--accent-glow-hard':'rgba(232,93,38,0.4)' },
+  red:     { '--accent':'#e83a3a','--accent-glow':'rgba(232,58,58,0.2)','--accent-dim':'#8a1010','--slider-fill':'#e83a3a','--accent-bg-faint':'rgba(232,58,58,0.08)','--accent-bg-soft':'rgba(232,58,58,0.12)','--accent-bg-mid':'rgba(232,58,58,0.18)','--accent-bg-strong':'rgba(232,58,58,0.22)','--accent-glow-hard':'rgba(232,58,58,0.4)' },
+  green:   { '--accent':'#2ec76a','--accent-glow':'rgba(46,199,106,0.2)','--accent-dim':'#0f6a30','--slider-fill':'#2ec76a','--accent-bg-faint':'rgba(46,199,106,0.08)','--accent-bg-soft':'rgba(46,199,106,0.12)','--accent-bg-mid':'rgba(46,199,106,0.18)','--accent-bg-strong':'rgba(46,199,106,0.22)','--accent-glow-hard':'rgba(46,199,106,0.4)' },
+  blue:    { '--accent':'#4a8fff','--accent-glow':'rgba(74,143,255,0.2)','--accent-dim':'#1a4a9a','--slider-fill':'#4a8fff','--accent-bg-faint':'rgba(74,143,255,0.08)','--accent-bg-soft':'rgba(74,143,255,0.12)','--accent-bg-mid':'rgba(74,143,255,0.18)','--accent-bg-strong':'rgba(74,143,255,0.22)','--accent-glow-hard':'rgba(74,143,255,0.4)' },
+  purple:  { '--accent':'#9b6fff','--accent-glow':'rgba(155,111,255,0.2)','--accent-dim':'#5a2aaa','--slider-fill':'#9b6fff','--accent-bg-faint':'rgba(155,111,255,0.08)','--accent-bg-soft':'rgba(155,111,255,0.12)','--accent-bg-mid':'rgba(155,111,255,0.18)','--accent-bg-strong':'rgba(155,111,255,0.22)','--accent-glow-hard':'rgba(155,111,255,0.4)' },
+  neutral: { '--accent':'#a8a8bc','--accent-glow':'rgba(168,168,188,0.15)','--accent-dim':'#484860','--slider-fill':'#a8a8bc','--accent-bg-faint':'rgba(168,168,188,0.07)','--accent-bg-soft':'rgba(168,168,188,0.10)','--accent-bg-mid':'rgba(168,168,188,0.14)','--accent-bg-strong':'rgba(168,168,188,0.18)','--accent-glow-hard':'rgba(168,168,188,0.28)' },
+};
+
+const ACCENT_SWATCHES = [
+  { key: 'orange',  color: '#e85d26' },
+  { key: 'red',     color: '#e83a3a' },
+  { key: 'green',   color: '#2ec76a' },
+  { key: 'blue',    color: '#4a8fff' },
+  { key: 'purple',  color: '#9b6fff' },
+  { key: 'neutral', color: '#a8a8bc' },
+];
+
 function getDefaults(effectId) {
   return { ...EFFECTS.find(e => e.id === effectId).defaults };
 }
@@ -44,20 +62,14 @@ export default function App() {
   const [effectId,    setEffectId]    = useState('fire');
   const [params,      setParams]      = useState(() => getDefaults('fire'));
   const [userPresets, setUserPresets] = useState(() => getUserPresets());
+  const [accentKey,   setAccentKey]   = useState('orange');
 
-  // ── Playback state ──────────────────────────────────────────────────────
   const [isPlaying,   setIsPlaying]   = useState(true);
   const [loop,        setLoop]        = useState(true);
   const [frameCount,  setFrameCount]  = useState(0);
   const [restartKey,  setRestartKey]  = useState(0);
-
-  // ── Quality ─────────────────────────────────────────────────────────────
   const [quality,     setQuality]     = useState('preview');
-
-  // ── Auto-restart on simulation-affecting param change ───────────────────
   const [autoRestart, setAutoRestart] = useState(false);
-
-  // ── Export modal ─────────────────────────────────────────────────────────
   const [showExport,  setShowExport]  = useState(false);
 
   const canvasRef    = useRef(null);
@@ -71,50 +83,39 @@ export default function App() {
 
   const handleParamChange = useCallback((key, value) => {
     setParams(p => ({ ...p, [key]: value }));
-
     if (autoRestart) {
       const def = EFFECTS.find(e => e.id === effectId);
       const paramDef = def?.params.find(p => p.key === key);
-      if (paramDef?.restartOnChange) {
-        setRestartKey(k => k + 1);
-      }
+      if (paramDef?.restartOnChange) setRestartKey(k => k + 1);
     }
   }, [autoRestart, effectId]);
 
-  const handleRandomize = useCallback(() => {
-    setParams(randomizeParams(activeEffect));
-  }, [activeEffect]);
-
-  const handleReset = useCallback(() => {
-    setParams(getDefaults(effectId));
-  }, [effectId]);
-
-  const handleRestart = useCallback(() => {
-    setRestartKey(k => k + 1);
-  }, []);
-
-  const handlePresetLoad = useCallback((presetParams) => {
-    setParams(prev => ({ ...prev, ...presetParams }));
-  }, []);
-
-  const handlePresetSave = useCallback((name, currentParams) => {
-    const updated = saveUserPreset(effectId, name, currentParams);
-    setUserPresets({ ...updated });
-  }, [effectId]);
-
-  const handlePresetDelete = useCallback((name) => {
-    const updated = deleteUserPreset(effectId, name);
-    setUserPresets({ ...updated });
-  }, [effectId]);
+  const handleRandomize    = useCallback(() => setParams(randomizeParams(activeEffect)), [activeEffect]);
+  const handleReset        = useCallback(() => setParams(getDefaults(effectId)), [effectId]);
+  const handleRestart      = useCallback(() => setRestartKey(k => k + 1), []);
+  const handlePresetLoad   = useCallback((p)    => setParams(prev => ({ ...prev, ...p })), []);
+  const handlePresetSave   = useCallback((n, p) => setUserPresets({ ...saveUserPreset(effectId, n, p) }), [effectId]);
+  const handlePresetDelete = useCallback((n)    => setUserPresets({ ...deleteUserPreset(effectId, n) }), [effectId]);
 
   return (
-    <div className="app">
+    <div className="app" style={ACCENTS[accentKey]}>
       <header className="app-header">
         <div className="logo">
           <span className="logo-icon">⬡</span>
           <span className="logo-text">FIRECRACKER</span>
         </div>
         <div className="header-tagline">VFX Generator</div>
+        <div className="accent-picker">
+          {ACCENT_SWATCHES.map(s => (
+            <button
+              key={s.key}
+              className={`accent-swatch${accentKey === s.key ? ' active' : ''}`}
+              style={{ background: s.color }}
+              onClick={() => setAccentKey(s.key)}
+              title={s.key}
+            />
+          ))}
+        </div>
         <div className="header-effect-name">{activeEffect.label}</div>
       </header>
 
