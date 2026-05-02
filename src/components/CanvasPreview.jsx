@@ -1,54 +1,86 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect } from 'react';
 import { EFFECTS } from '../effects';
 
-export default function CanvasPreview({ effectId, params, canvasRef: externalRef }) {
-  const canvasRef = externalRef;
-  const effectRef = useRef(null);
-  const animRef = useRef(null);
-  const lastTimeRef = useRef(null);
-  const effectIdRef = useRef(effectId);
-  const paramsRef = useRef(params);
+export default function CanvasPreview({
+  effectId, params, canvasRef,
+  isPlaying,  // bool — when false, dt is zeroed so simulation freezes
+  restartKey, // increment to reset the current effect
+  quality,    // 'draft' | 'preview' | 'high' | 'ultra'
+  onFrameCount,
+}) {
+  const effectRef    = useRef(null);
+  const animRef      = useRef(null);
+  const lastTimeRef  = useRef(null);
+  const paramsRef    = useRef(params);
+  const isPlayingRef = useRef(isPlaying);
+  const qualityRef   = useRef(quality);
+  const frameRef     = useRef(0);
 
-  useEffect(() => { paramsRef.current = params; }, [params]);
+  // Keep refs in sync so the rAF closure always reads current values
+  useEffect(() => { paramsRef.current    = params;    }, [params]);
+  useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
+  useEffect(() => { qualityRef.current   = quality;   }, [quality]);
 
+  // Swap effect when effectId changes
   useEffect(() => {
     const def = EFFECTS.find(e => e.id === effectId);
     if (!def) return;
-
-    if (effectRef.current) effectRef.current.reset();
+    if (effectRef.current) effectRef.current.reset?.();
     effectRef.current = def.factory();
-    effectIdRef.current = effectId;
+    frameRef.current  = 0;
+    onFrameCount?.(0);
+    lastTimeRef.current = null;
   }, [effectId]);
 
+  // Reset (without swapping) when restartKey increments
+  useEffect(() => {
+    if (effectRef.current) effectRef.current.reset?.();
+    frameRef.current  = 0;
+    onFrameCount?.(0);
+    lastTimeRef.current = null;
+  }, [restartKey]);
+
+  // DPR-aware resize observer
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const resizeObserver = new ResizeObserver(() => {
-      const dpr = window.devicePixelRatio || 1;
+    const ro = new ResizeObserver(() => {
+      const dpr  = window.devicePixelRatio || 1;
       const rect = canvas.getBoundingClientRect();
-      canvas.width = rect.width * dpr;
+      canvas.width  = rect.width  * dpr;
       canvas.height = rect.height * dpr;
       const ctx = canvas.getContext('2d');
       ctx.scale(dpr, dpr);
     });
 
-    resizeObserver.observe(canvas);
-    return () => resizeObserver.disconnect();
+    ro.observe(canvas);
+    return () => ro.disconnect();
   }, [canvasRef]);
 
+  // Main render loop
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
 
     function tick(timestamp) {
-      const dt = lastTimeRef.current ? Math.min((timestamp - lastTimeRef.current) / 1000, 0.05) : 0.016;
+      const rawDt = lastTimeRef.current
+        ? Math.min((timestamp - lastTimeRef.current) / 1000, 0.05)
+        : 0.016;
       lastTimeRef.current = timestamp;
 
+      // Freeze simulation when paused; still draws last state
+      const dt = isPlayingRef.current ? rawDt : 0;
+
+      if (dt > 0) {
+        frameRef.current += 1;
+        onFrameCount?.(frameRef.current);
+      }
+
       const dpr = window.devicePixelRatio || 1;
-      const w = canvas.width / dpr;
-      const h = canvas.height / dpr;
+      const w   = canvas.width  / dpr;
+      const h   = canvas.height / dpr;
 
       ctx.save();
       ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -56,9 +88,8 @@ export default function CanvasPreview({ effectId, params, canvasRef: externalRef
       ctx.restore();
 
       if (effectRef.current) {
-        // pass a virtual canvas with logical dimensions
-        const virtualCanvas = { width: w, height: h };
-        effectRef.current.update(ctx, virtualCanvas, paramsRef.current, dt);
+        const renderOpts = { quality: qualityRef.current, isExport: false };
+        effectRef.current.update(ctx, { width: w, height: h }, paramsRef.current, dt, renderOpts);
       }
 
       animRef.current = requestAnimationFrame(tick);
