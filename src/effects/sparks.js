@@ -152,6 +152,81 @@ function spawnParticle(params, rng, burst, type) {
   };
 }
 
+function spawnAtmosphere(cx, cy, params, rng, burst) {
+  const gas = param(params, 'gasPlume', 0) / 100;
+  const smoke = param(params, 'smokeAmount', 0) / 100;
+  const smokeDrift = param(params, 'smokeDrift', 45) / 100;
+  const lens = param(params, 'lensFlare', 0) / 100;
+  const spill = param(params, 'spillGlow', 0) / 100;
+  const flash = param(params, 'flashSize', 62) / 100;
+  const temp = param(params, 'colorTemp', 58);
+  const any = gas + smoke + lens + spill;
+  if (any <= 0.001) return null;
+
+  const plumeBlobs = [];
+  const smokeBlobs = [];
+  const streaks = [];
+  const plumeCount = Math.round(lerp(3, 12, gas));
+  const smokeCount = Math.round(lerp(2, 14, smoke));
+  const direction = burst.direction;
+  const directional = burst.directional;
+  const scatter = burst.scatter;
+
+  for (let i = 0; i < plumeCount; i++) {
+    const t = (i + rand(rng, 0.08, 0.9)) / plumeCount;
+    plumeBlobs.push({
+      t,
+      side: signedPowRandom(rng, 1.2) * lerp(5, 22, scatter) * (0.3 + t),
+      radius: lerp(10, 54, gas) * rand(rng, 0.55, 1.25) * (0.72 + t * 0.95),
+      stretch: rand(rng, 0.8, 1.75),
+      alpha: rand(rng, 0.18, 0.58) * gas,
+      heat: rand(rng, 0.45, 1) * (1 - t * 0.45),
+    });
+  }
+
+  for (let i = 0; i < smokeCount; i++) {
+    const t = rand(rng, 0.06, 1);
+    smokeBlobs.push({
+      t,
+      side: signedPowRandom(rng, 0.95) * lerp(8, 42, scatter + smokeDrift * 0.5) * (0.45 + t),
+      radius: lerp(13, 72, smoke) * rand(rng, 0.65, 1.55) * (0.75 + t),
+      stretch: rand(rng, 0.75, 1.65),
+      alpha: rand(rng, 0.035, 0.13) * smoke,
+      warm: rand(rng, 0.15, 0.75),
+    });
+  }
+
+  const streakCount = Math.round(lerp(1, 4, lens));
+  for (let i = 0; i < streakCount; i++) {
+    streaks.push({
+      offset: signedPowRandom(rng, 1.3) * lerp(2, 16, scatter),
+      length: rand(rng, 0.62, 1.3),
+      width: rand(rng, 0.45, 1.2),
+      alpha: rand(rng, 0.28, 0.75) * lens,
+    });
+  }
+
+  return {
+    x: cx,
+    y: cy,
+    age: 0,
+    life: lerp(0.16, 0.72, Math.max(gas, smoke, spill)),
+    direction,
+    directional,
+    scatter,
+    gas,
+    smoke,
+    smokeDrift,
+    lens,
+    spill,
+    flash,
+    temp,
+    plumeBlobs,
+    smokeBlobs,
+    streaks,
+  };
+}
+
 function spawnBurst(cx, cy, params, rng) {
   const count = param(params, 'sparkCount', 52);
   const fragmentWeight = param(params, 'fragmentWeight', 44) / 100;
@@ -185,7 +260,118 @@ function spawnBurst(cx, cy, params, rng) {
     })),
   } : null;
 
-  return { particles, flash };
+  return { particles, flash, atmosphere: spawnAtmosphere(cx, cy, params, rng, burst) };
+}
+
+function drawAtmosphereSmoke(ctx, a) {
+  if (a.smoke <= 0) return;
+
+  const n = clamp01(a.age / a.life);
+  const life = Math.pow(1 - n, 1.15);
+  const travel = 120 * a.smokeDrift * n;
+  const dx = Math.cos(a.direction);
+  const dy = Math.sin(a.direction);
+  const px = -dy;
+  const py = dx;
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'source-over';
+  for (const b of a.smokeBlobs) {
+    const dist = (26 + a.smoke * 150) * b.t + travel;
+    const x = a.x + dx * dist + px * b.side * (1 + n * 0.7);
+    const y = a.y + dy * dist + py * b.side * (1 + n * 0.7) - 14 * n * a.smokeDrift;
+    const r = b.radius * (1 + n * 1.15);
+    const alpha = b.alpha * life;
+    if (alpha <= 0.002) continue;
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(a.direction + b.side * 0.01);
+    ctx.scale(b.stretch, 1 / b.stretch);
+    const g = ctx.createRadialGradient(0, 0, r * 0.05, 0, 0, r);
+    const warm = Math.round(105 + b.warm * 70);
+    g.addColorStop(0, `rgba(${warm},${Math.round(warm * 0.72)},${Math.round(warm * 0.42)},${alpha.toFixed(3)})`);
+    g.addColorStop(0.48, `rgba(94,82,68,${(alpha * 0.42).toFixed(3)})`);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+function drawAtmosphereLight(ctx, a) {
+  const n = clamp01(a.age / a.life);
+  const life = Math.pow(1 - n, 1.85);
+  const dx = Math.cos(a.direction);
+  const dy = Math.sin(a.direction);
+  const px = -dy;
+  const py = dx;
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+
+  if (a.spill > 0) {
+    for (let i = 0; i < 3; i++) {
+      const side = (i - 1) * 7 * (0.4 + a.scatter);
+      const r = lerp(18, 80, a.spill) * (1 + i * 0.32) * (1 + n * 0.55);
+      const x = a.x + dx * i * 10 + px * side;
+      const y = a.y + dy * i * 10 + py * side;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, heatColor(a.temp, 0.8, a.spill * life * 0.18));
+      g.addColorStop(0.55, heatColor(a.temp, 0.32, a.spill * life * 0.055));
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, TAU);
+      ctx.fill();
+    }
+  }
+
+  if (a.gas > 0) {
+    for (const b of a.plumeBlobs) {
+      const dist = (18 + a.gas * 170) * b.t;
+      const x = a.x + dx * dist + px * b.side;
+      const y = a.y + dy * dist + py * b.side;
+      const r = b.radius * (1 + n * 0.42);
+      const alpha = b.alpha * life;
+      if (alpha <= 0.003) continue;
+
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(a.direction + b.side * 0.006);
+      ctx.scale(lerp(0.85, 1.7, a.directional) * b.stretch, 1 / b.stretch);
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
+      g.addColorStop(0, `rgba(255,255,245,${Math.min(1, alpha * 0.95).toFixed(3)})`);
+      g.addColorStop(0.22, heatColor(a.temp, Math.max(0.65, b.heat), alpha * 0.82));
+      g.addColorStop(0.64, heatColor(a.temp, b.heat * 0.42, alpha * 0.28));
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, TAU);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  if (a.lens > 0) {
+    ctx.lineCap = 'round';
+    for (const s of a.streaks) {
+      const len = lerp(35, 260, a.lens) * s.length * lerp(0.45, 1.35, a.directional);
+      const ox = px * s.offset;
+      const oy = py * s.offset;
+      ctx.strokeStyle = `rgba(255,232,170,${(s.alpha * life * 0.38).toFixed(3)})`;
+      ctx.lineWidth = Math.max(0.45, s.width * lerp(0.5, 1.7, a.lens));
+      ctx.beginPath();
+      ctx.moveTo(a.x - dx * len * 0.18 + ox, a.y - dy * len * 0.18 + oy);
+      ctx.lineTo(a.x + dx * len + ox * 0.35, a.y + dy * len + oy * 0.35);
+      ctx.stroke();
+    }
+  }
+
+  ctx.restore();
 }
 
 function drawFlash(ctx, flash, params) {
@@ -282,6 +468,7 @@ function drawParticle(ctx, p, exposure) {
 export function createSparksEffect() {
   let particles = [];
   let flashes = [];
+  let atmospheres = [];
   let burstTimer = 0;
   let rng = Math.random;
   let lastSeed = null;
@@ -290,6 +477,7 @@ export function createSparksEffect() {
     reset() {
       particles = [];
       flashes = [];
+      atmospheres = [];
       burstTimer = 0;
       lastSeed = null;
     },
@@ -317,10 +505,25 @@ export function createSparksEffect() {
         const burst = spawnBurst(cx, cy, params, rng);
         particles.push(...burst.particles);
         if (burst.flash) flashes.push(burst.flash);
+        if (burst.atmosphere) atmospheres.push(burst.atmosphere);
+      }
+
+      for (let i = atmospheres.length - 1; i >= 0; i--) {
+        const a = atmospheres[i];
+        a.age += dt;
+        if (a.age >= a.life) {
+          atmospheres.splice(i, 1);
+          continue;
+        }
+        drawAtmosphereSmoke(ctx, a);
       }
 
       ctx.save();
       ctx.globalCompositeOperation = 'screen';
+
+      for (let i = atmospheres.length - 1; i >= 0; i--) {
+        drawAtmosphereLight(ctx, atmospheres[i]);
+      }
 
       for (let i = flashes.length - 1; i >= 0; i--) {
         const f = flashes[i];
@@ -364,6 +567,7 @@ export function createSparksEffect() {
 
       if (particles.length > 900) particles.splice(0, particles.length - 900);
       if (flashes.length > 5) flashes.splice(0, flashes.length - 5);
+      if (atmospheres.length > 5) atmospheres.splice(0, atmospheres.length - 5);
 
       ctx.restore();
     },
