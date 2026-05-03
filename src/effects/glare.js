@@ -19,6 +19,13 @@ function easeInOut(t) {
   return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
 }
 
+function heroCurve(t, power = 1.45, knee = 0.62) {
+  const x = clamp(t);
+  const shaped = Math.pow(x, power);
+  const highLift = smoothstep((x - knee) / Math.max(0.001, 1 - knee));
+  return clamp(shaped + highLift * 0.45, 0, 1.45);
+}
+
 function wrap01(v) {
   return ((v % 1) + 1) % 1;
 }
@@ -193,6 +200,14 @@ function colorModePalette(mode) {
       source: '#ffe6ba', coating: '#79d8ff', warmth: 0.56, saturation: 0.82, spread: 0.9,
       core: '#fffdf4', mid: '#ffc66c', outer: '#65b8ff', halo: '#ff7bd9', spike: '#d8fff0',
     },
+    vintageAmber: {
+      source: '#ffbe72', coating: '#ffd08c', warmth: 0.9, saturation: 0.58, spread: 0.34,
+      core: '#fff1c2', mid: '#f28b3f', outer: '#d95f38', halo: '#ffc46f', spike: '#ffd891',
+    },
+    sciFiCyan: {
+      source: '#9ff8ff', coating: '#58a8ff', warmth: 0.14, saturation: 0.74, spread: 0.62,
+      core: '#f6ffff', mid: '#56ecff', outer: '#3f73ff', halo: '#65fff0', spike: '#adf8ff',
+    },
   };
   return palettes[mode] || palettes.naturalWarm;
 }
@@ -215,15 +230,95 @@ function lensStyleProfile(style) {
 
 function styledParams(params) {
   const profile = lensStyleProfile(getValue(params, 'lensStyle', 'breathingGlow'));
+  const burstShape = getValue(params, 'burstShape', 'softStar');
+  const burstAmount = getValue(params, 'burstAmount', 24);
+  const burstIntensity = getValue(params, 'burstIntensity', 58) / 100;
+  const burstSize = getValue(params, 'burstSize', 48) / 100;
+  const burstDensity = getValue(params, 'burstDensity', 48) / 100;
+  const amountCurve = heroCurve(burstAmount / 100, 1.18, 0.58);
+  const intensityCurve = heroCurve(burstIntensity, 1.44, 0.68);
+  const sizeCurve = heroCurve(burstSize, 1.28, 0.64);
+  const densityCurve = heroCurve(burstDensity, 1.18, 0.62);
+  const sourceShape = getValue(params, 'sourceShape', 'round');
+  const direction = getValue(params, 'glareDirection', 'radial');
+  const angleStrength = getValue(params, 'angleStrength', 28) / 100;
+  const sourceProfile = sourceShapeProfile(sourceShape);
+  const directionalBoost = direction === 'radial' ? 0 : angleStrength * 0.28;
+  const colorSpread = getValue(params, 'colorSpread', 20);
+  const fringeAmount = getValue(params, 'fringeAmount', 16);
+  const existingStarburst = getValue(params, 'starburstAmount', 16);
+  const derivedStarburst = burstShape === 'none' || burstAmount <= 0.01
+    ? 0
+    : Math.max(existingStarburst, burstAmount * lerp(0.24, 1.04 + directionalBoost, intensityCurve) * lerp(0.72, 1.18, amountCurve));
+  const derivedSharpness = lerp(getValue(params, 'burstSharpness', 42), lerp(22, 86, intensityCurve) * sourceProfile.sharpness, 0.5);
+  const derivedSoftness = lerp(getValue(params, 'burstSoftness', 58), lerp(90, 28, intensityCurve) * sourceProfile.softness, 0.42);
+  const derivedComplexity = lerp(getValue(params, 'patternComplexity', 46), lerp(22, 98, densityCurve), 0.66);
+  const burstPresence = lerp(0.72, 1.72, amountCurve) * lerp(0.82, 1.28 + directionalBoost, intensityCurve) * sourceProfile.burst;
+  const burstReach = lerp(0.82, 1.66 + directionalBoost, sizeCurve) * sourceProfile.reach;
   return {
     ...params,
     intensity: clamp(getValue(params, 'intensity', 74) * profile.intensity, 0, 120),
     size: clamp(getValue(params, 'size', 56) * profile.size, 0, 120),
     softness: clamp(getValue(params, 'softness', 80) * profile.softness, 0, 120),
-    burstAmount: clamp(getValue(params, 'burstAmount', 24) * profile.burst, 0, 120),
+    burstAmount: clamp(burstAmount * profile.burst * burstPresence, 0, 260),
+    burstHeroPower: clamp(lerp(0.82, 1.52, intensityCurve) * lerp(0.86, 1.22, amountCurve), 0.65, 2.05),
+    burstReachPower: clamp(burstReach, 0.72, 2.05),
+    burstSharpness: clamp(derivedSharpness, 0, 100),
+    burstSoftness: clamp(derivedSoftness, 0, 100),
+    starburstAmount: clamp(derivedStarburst * profile.burst * sourceProfile.star, 0, 165),
+    starburstShape: burstShapeToStarburstShape(burstShape),
+    patternComplexity: clamp(derivedComplexity, 0, 100),
+    spikeLength: clamp(getValue(params, 'spikeLength', 58) * burstReach, 0, 190),
+    spikeSharpness: clamp(lerp(getValue(params, 'spikeSharpness', 52), lerp(28, 90, intensityCurve) * sourceProfile.sharpness, 0.48), 0, 100),
+    spikeGlow: clamp(lerp(getValue(params, 'spikeGlow', 58), lerp(42, 96, intensityCurve), 0.54), 0, 112),
+    secondarySpikeAmount: clamp(lerp(getValue(params, 'secondarySpikeAmount', 22), lerp(8, 92, densityCurve), 0.66), 0, 120),
+    microGlintAmount: clamp(lerp(getValue(params, 'microGlintAmount', 24), lerp(6, 84, densityCurve), 0.58), 0, 115),
+    glintAmount: clamp(lerp(getValue(params, 'glintAmount', 26), lerp(8, 88, densityCurve), 0.56), 0, 120),
+    burstAsymmetry: clamp(lerp(getValue(params, 'burstAsymmetry', 36), lerp(18, 68, densityCurve), 0.44), 0, 100),
+    burstBreakup: clamp(lerp(getValue(params, 'burstBreakup', 42), lerp(22, 74, densityCurve), 0.46), 0, 100),
+    burstLayerRichness: clamp(lerp(getValue(params, 'burstLayerRichness', 48), lerp(26, 112, densityCurve), 0.62), 0, 125),
+    burstCoreCoupling: clamp(lerp(getValue(params, 'burstCoreCoupling', 72), lerp(58, 96, intensityCurve), 0.44), 0, 110),
+    burstBloomCoupling: clamp(lerp(getValue(params, 'burstBloomCoupling', 46), lerp(38, 88, amountCurve), 0.5), 0, 105),
+    sourceSize: clamp(getValue(params, 'sourceSize', 42) * sourceProfile.coreSize, 0, 130),
+    coreClip: clamp(getValue(params, 'coreClip', 78) * sourceProfile.coreClip, 0, 110),
+    spectralSplit: clamp(Math.max(getValue(params, 'spectralSplit', 18), colorSpread * 0.92), 0, 100),
+    chromaticAberration: clamp(Math.max(getValue(params, 'chromaticAberration', 18), fringeAmount * 0.9), 0, 100),
+    haloFringing: clamp(Math.max(getValue(params, 'haloFringing', 24), colorSpread * 0.82), 0, 100),
+    burstFringeAmount: clamp(Math.max(getValue(params, 'burstFringeAmount', 18), fringeAmount * 0.96), 0, 100),
     haloAmount: clamp(getValue(params, 'haloAmount', 42) * profile.halo, 0, 120),
     bloomExpansion: clamp(getValue(params, 'bloomExpansion', 44) * profile.bloom, 0, 120),
   };
+}
+
+function burstShapeToStarburstShape(shape) {
+  const map = {
+    none: 'none',
+    softStar: 'softDiffraction',
+    fourPoint: 'fourPoint',
+    crossStar: 'crossFilter',
+    sixPoint: 'sixPoint',
+    eightPoint: 'eightPoint',
+    diffractionBloom: 'softDiffraction',
+    flowerBurst: 'softDiffraction',
+    needleStar: 'needleStar',
+    anamorphicCross: 'anamorphicCross',
+  };
+  return map[shape] || 'softDiffraction';
+}
+
+function sourceShapeProfile(shape) {
+  const profiles = {
+    none: { coreSize: 0, coreClip: 0.72, burst: 0.18, star: 0.12, reach: 0.78, sharpness: 0.62, softness: 1.34 },
+    round: { coreSize: 1, coreClip: 1, burst: 0.92, star: 0.9, reach: 0.95, sharpness: 0.92, softness: 1.1 },
+    star: { coreSize: 0.78, coreClip: 1.2, burst: 1.56, star: 1.62, reach: 1.38, sharpness: 1.28, softness: 0.78 },
+    needle: { coreSize: 0.58, coreClip: 1.26, burst: 1.48, star: 1.5, reach: 1.58, sharpness: 1.42, softness: 0.66 },
+    cross: { coreSize: 0.74, coreClip: 1.18, burst: 1.34, star: 1.42, reach: 1.38, sharpness: 1.2, softness: 0.76 },
+    diffraction: { coreSize: 0.92, coreClip: 1.08, burst: 1.24, star: 1.32, reach: 1.12, sharpness: 0.98, softness: 1.14 },
+    donut: { coreSize: 1.2, coreClip: 0.78, burst: 0.66, star: 0.62, reach: 0.94, sharpness: 0.72, softness: 1.28 },
+    softBlob: { coreSize: 1.34, coreClip: 0.82, burst: 0.48, star: 0.42, reach: 0.78, sharpness: 0.62, softness: 1.36 },
+    anamorphicPoint: { coreSize: 0.68, coreClip: 1.2, burst: 1.36, star: 1.46, reach: 1.72, sharpness: 1.18, softness: 0.84 },
+  };
+  return profiles[shape] || profiles.round;
 }
 
 function drawSoftStreak(ctx, x, y, angle, length, width, color, alpha, opts = {}) {
@@ -373,15 +468,15 @@ function computeSafeRenderScale(canvas, params, size, softness, env) {
 
 function buildColorSystem(params, env) {
   const palette = colorModePalette(getValue(params, 'colorMode', 'naturalWarm'));
-  const source = hexToRgb(getValue(params, 'sourceColor', palette.source));
-  const coreTint = hexToRgb(getValue(params, 'coreTint', palette.core));
-  const midTint = hexToRgb(getValue(params, 'midGlowTint', palette.mid));
-  const outerTint = hexToRgb(getValue(params, 'outerBloomTint', palette.outer));
-  const haloTint = hexToRgb(getValue(params, 'haloEdgeTint', palette.halo));
-  const spikeTint = hexToRgb(getValue(params, 'spikeTint', palette.spike));
-  const warmth = getValue(params, 'warmth', palette.warmth * 100) / 100;
-  const saturation = getValue(params, 'saturation', palette.saturation * 100) / 100;
-  const spread = getValue(params, 'colorSpread', palette.spread * 100) / 100;
+  const source = mixRgb(hexToRgb(getValue(params, 'sourceColor', palette.source)), hexToRgb(palette.source), 0.5);
+  const coreTint = mixRgb(hexToRgb(getValue(params, 'coreTint', palette.core)), hexToRgb(palette.core), 0.55);
+  const midTint = mixRgb(hexToRgb(getValue(params, 'midGlowTint', palette.mid)), hexToRgb(palette.mid), 0.58);
+  const outerTint = mixRgb(hexToRgb(getValue(params, 'outerBloomTint', palette.outer)), hexToRgb(palette.outer), 0.62);
+  const haloTint = mixRgb(hexToRgb(getValue(params, 'haloEdgeTint', palette.halo)), hexToRgb(palette.halo), 0.48);
+  const spikeTint = mixRgb(hexToRgb(getValue(params, 'spikeTint', palette.spike)), hexToRgb(palette.spike), 0.42);
+  const warmth = clamp(getValue(params, 'warmth', palette.warmth * 100) / 100 * 0.72 + palette.warmth * 0.28);
+  const saturation = clamp(getValue(params, 'saturation', palette.saturation * 100) / 100 * 0.78 + palette.saturation * 0.36);
+  const spread = clamp(getValue(params, 'colorSpread', palette.spread * 100) / 100 * 1.05 + palette.spread * 0.42);
   const fringe = getValue(params, 'fringeAmount', getValue(params, 'spectralSplit', 18)) / 100;
   const bloomBias = getValue(params, 'bloomTintBias', 46) / 100;
   const warmCool = getValue(params, 'warmCoolBalance', warmth * 100) / 100;
@@ -404,8 +499,8 @@ function buildColorSystem(params, env) {
   const coatingBase = mixRgb(mixRgb(amber, cyan, coatingTint), coating, 0.34 + spread * 0.28);
   const coatingMix = mixRgb(coatingBase, hueOffset > 0.5 ? magenta : green, Math.abs(hueOffset - 0.5) * 0.38 * spread);
   const haloBase = mixRgb(mixRgb(bloom, haloTint, saturation * 0.45), coatingMix, 0.16 + spread * 0.38);
-  const spikeBase = mixRgb(mixRgb(bloom, spikeTint, saturation * 0.46), WHITE, 0.1 + env.hot * 0.18);
-  const outer = mixRgb(mixRgb(bloom, outerTint, saturation * 0.42), warmth > 0.5 ? amber : cyan, 0.12 + spread * 0.18);
+  const spikeBase = mixRgb(mixRgb(bloom, spikeTint, saturation * 0.58), WHITE, 0.08 + env.hot * 0.14);
+  const outer = mixRgb(mixRgb(bloom, outerTint, saturation * 0.56), warmth > 0.5 ? amber : cyan, 0.12 + spread * 0.26);
 
   return {
     core: mixRgb(mixRgb(temp, coreTint, tintMix * 0.28), WHITE, 0.36 + env.hot * 0.48),
@@ -413,6 +508,7 @@ function buildColorSystem(params, env) {
     outer,
     halo: haloBase,
     spike: spikeBase,
+    streak: mixRgb(spikeBase, coatingMix, 0.18 + spread * 0.22),
     warm,
     cool,
     amber: mixRgb(amber, midTint, saturation * 0.22),
@@ -433,9 +529,46 @@ function drawHotCore(ctx, x, y, baseRadius, colors, env, params) {
   const falloff = getValue(params, 'coreFalloff', 54) / 100;
   const tightness = getValue(params, 'coreTightness', 64) / 100;
   const sourceSize = getValue(params, 'sourceSize', getValue(params, 'size', 56)) / 100;
+  const sourceShape = getValue(params, 'sourceShape', 'round');
   const hotContract = lerp(1.34, 0.58, env.hot * tightness);
   const coreRadius = baseRadius * lerp(0.08, 0.28, sourceSize) * hotContract;
   const power = intensity * env.brightness;
+
+  if (sourceShape === 'none' || sourceSize <= 0.001) {
+    drawRadial(ctx, x, y, baseRadius * lerp(0.24, 0.56, getValue(params, 'softness', 78) / 100), [
+      [0, rgba(colors.core, power * 0.18)],
+      [0.42, rgba(colors.bloom, power * 0.12)],
+      [1, 'rgba(0,0,0,0)'],
+    ]);
+    return;
+  }
+
+  if (sourceShape === 'softBlob') {
+    drawEllipseRadial(ctx, x + coreRadius * 0.08, y - coreRadius * 0.04, coreRadius * 4.4, coreRadius * 3.2, [
+      [0, rgba(WHITE, power * 0.38)],
+      [0.24, rgba(colors.core, power * 0.54)],
+      [0.68, rgba(colors.bloom, power * 0.24 * falloff)],
+      [1, 'rgba(0,0,0,0)'],
+    ], -0.18);
+    return;
+  }
+
+  if (sourceShape === 'donut') {
+    drawRadial(ctx, x, y, coreRadius * 4.2, [
+      [0, 'rgba(0,0,0,0)'],
+      [0.18, rgba(colors.cool, power * 0.03)],
+      [0.36, rgba(WHITE, power * 0.62)],
+      [0.52, rgba(colors.core, power * 0.44)],
+      [0.82, rgba(colors.bloom, power * 0.18 * falloff)],
+      [1, 'rgba(0,0,0,0)'],
+    ]);
+    drawRadial(ctx, x, y, coreRadius * 1.3, [
+      [0, 'rgba(0,0,0,0)'],
+      [0.65, rgba(colors.cool, power * 0.035)],
+      [1, 'rgba(0,0,0,0)'],
+    ]);
+    return;
+  }
 
   drawRadial(ctx, x, y, coreRadius * lerp(5.5, 2.6, coreClip), [
     [0, `rgba(255,255,255,${clamp(power * 0.95)})`],
@@ -450,6 +583,54 @@ function drawHotCore(ctx, x, y, baseRadius, colors, env, params) {
     [0.62, `rgba(255,255,255,${clamp(0.72 + env.hot * 0.28)})`],
     [1, 'rgba(255,255,255,0)'],
   ]);
+
+  if (sourceShape === 'anamorphicPoint') {
+    drawSoftStreak(ctx, x, y, 0, coreRadius * 8.5, coreRadius * 0.16, colors.streak, power * 0.16, {
+      start: -0.42,
+      end: 0.42,
+      seed: getValue(params, 'imperfectionSeed', 311) + 120,
+      complexity: 0.28,
+    });
+  }
+
+  const shapeSpikes = {
+    star: { count: 16, length: 7.2, alpha: 0.24, haze: 0.16, color: colors.amber },
+    needle: { count: 10, length: 7.8, alpha: 0.2, haze: 0.1, color: colors.spike },
+    cross: { count: 4, length: 7.0, alpha: 0.2, haze: 0.12, color: colors.streak },
+    diffraction: { count: 22, length: 4.2, alpha: 0.095, haze: 0.12, color: colors.halo },
+  }[sourceShape];
+  if (shapeSpikes) {
+    const seed = getValue(params, 'imperfectionSeed', 311);
+    const softness = getValue(params, 'burstSoftness', 58) / 100;
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    withFilter(ctx, `blur(${lerp(0.8, 5.2, softness) * (sourceShape === 'needle' ? 0.58 : 1)}px)`, () => {
+      for (let i = 0; i < shapeSpikes.count; i++) {
+        const a = (i / shapeSpikes.count) * TAU + (hashNoise(seed, i + 1280) - 0.5) * 0.035;
+        const localLength = coreRadius * shapeSpikes.length * lerp(0.48, 1.28, hashNoise(seed, i + 1290));
+        const rayColor = i % 3 === 0 ? shapeSpikes.color : colors.streak;
+        drawSoftStreak(ctx, x, y, a, localLength, coreRadius * lerp(0.045, 0.13, softness), rayColor, power * shapeSpikes.alpha, {
+          start: 0,
+          end: 0.92,
+          seed: seed + i * 37,
+          complexity: sourceShape === 'diffraction' ? 0.56 : 0.32,
+        });
+        drawSoftStreak(ctx, x, y, a, localLength * 0.72, coreRadius * lerp(0.18, 0.44, softness), colors.warm, power * shapeSpikes.haze, {
+          start: 0,
+          end: 0.72,
+          seed: seed + i * 43,
+          complexity: 0.44,
+        });
+      }
+    });
+    drawRadial(ctx, x, y, coreRadius * lerp(2.1, 3.4, softness), [
+      [0, rgba(WHITE, power * 0.72)],
+      [0.18, rgba(colors.amber, power * 0.34)],
+      [0.52, rgba(colors.streak, power * 0.12)],
+      [1, 'rgba(0,0,0,0)'],
+    ]);
+    ctx.restore();
+  }
 }
 
 function drawBurstCore(ctx, x, y, baseRadius, colors, env, params) {
@@ -474,8 +655,10 @@ function drawBurstCore(ctx, x, y, baseRadius, colors, env, params) {
   const coreCoupling = getValue(params, 'burstCoreCoupling', 72) / 100;
   const bloomCoupling = getValue(params, 'burstBloomCoupling', 46) / 100;
   const fringe = getValue(params, 'burstFringeAmount', getValue(params, 'fringeAmount', 16)) / 100;
-  const corePower = amount * env.star * getValue(params, 'intensity', 78) / 100;
-  const burstRadius = baseRadius * lerp(0.14, 0.72, burstSize) * cfg.length * lerp(0.78, 1.18, env.hot * coreCoupling);
+  const heroPower = getValue(params, 'burstHeroPower', 1);
+  const reachPower = getValue(params, 'burstReachPower', 1);
+  const corePower = amount * env.star * getValue(params, 'intensity', 78) / 100 * heroPower;
+  const burstRadius = baseRadius * lerp(0.14, 1.02, Math.pow(burstSize, 0.86)) * cfg.length * reachPower * lerp(0.78, 1.28, env.hot * coreCoupling);
   const colorA = mixRgb(colors.spike, WHITE, 0.22);
   const colorB = mixRgb(colors.halo, colors.fringeB, clamp(colors.spread * 0.35 + fringe * 0.25));
 
@@ -486,16 +669,16 @@ function drawBurstCore(ctx, x, y, baseRadius, colors, env, params) {
       const base = rotation + (i / count) * TAU;
       const asym = (hashNoise(seed, i + 1700) - 0.5) * 0.28 * asymmetry;
       const a = base + asym;
-      const reach = burstRadius * lerp(0.42, 1.2, hashNoise(seed, i + 1730));
-      const width = baseRadius * lerp(0.012, 0.072, hashNoise(seed, i + 1760)) * lerp(1.65, 0.7, env.hot * sharpness) * lerp(0.75, 1.45, softness);
+      const reach = burstRadius * lerp(0.48, 1.42, hashNoise(seed, i + 1730)) * lerp(0.94, 1.2, heroPower - 1);
+      const width = baseRadius * lerp(0.012, 0.082, hashNoise(seed, i + 1760)) * lerp(1.65, 0.66, env.hot * sharpness) * lerp(0.78, 1.55, softness);
       const c = i % 3 === 0 ? colorB : colorA;
       if (hashNoise(seed, i + 1810) > breakup * 0.2) {
-        drawBurstBlob(ctx, x, y, a, reach * 0.35, reach * lerp(0.22, 0.42, softness), width * lerp(2.1, 3.6, softness), c, corePower * lerp(0.22, 0.42, sharpness), {
+        drawBurstBlob(ctx, x, y, a, reach * 0.35, reach * lerp(0.22, 0.46, softness), width * lerp(2.1, 3.8, softness), c, corePower * lerp(0.24, 0.58, sharpness), {
           seed: seed + i * 19,
           wobble: 0.24 + asymmetry * 0.26,
         });
       }
-      drawBurstBlob(ctx, x, y, a, reach * lerp(0.58, 0.86, richness), reach * lerp(0.12, 0.26, softness), width * lerp(0.9, 1.7, softness), c, corePower * lerp(0.08, 0.2, richness), {
+      drawBurstBlob(ctx, x, y, a, reach * lerp(0.58, 0.9, richness), reach * lerp(0.12, 0.3, softness), width * lerp(0.9, 1.8, softness), c, corePower * lerp(0.1, 0.3, richness), {
         seed: seed + i * 23,
         wobble: 0.34 + asymmetry * 0.36,
       });
@@ -513,7 +696,7 @@ function drawBurstCore(ctx, x, y, baseRadius, colors, env, params) {
   });
 
   if (cfg.cross > 0) {
-    const crossLength = burstRadius * lerp(1.6, 3.2, burstSize) * cfg.cross;
+    const crossLength = burstRadius * lerp(1.8, 4.25, Math.pow(burstSize, 0.78)) * cfg.cross;
     const crossWidth = baseRadius * lerp(0.015, 0.06, softness);
     withFilter(ctx, `blur(${lerp(8, 2.4, sharpness)}px)`, () => {
       drawSoftStreak(ctx, x, y, rotation, crossLength, crossWidth * 2.8, colors.spike, corePower * 0.16, {
@@ -757,6 +940,7 @@ function burstShapeConfig(shape) {
   const map = {
     none: { count: 0, length: 0, cross: 0, petals: 0 },
     softStar: { count: 10, length: 0.82, cross: 0, petals: 0.25 },
+    fourPoint: { count: 4, length: 0.98, cross: 0, petals: 0.1 },
     needleStar: { count: 8, length: 1.25, cross: 0.08, petals: 0.05 },
     crossStar: { count: 4, length: 1.05, cross: 0.45, petals: 0.12 },
     sixPoint: { count: 6, length: 0.95, cross: 0, petals: 0.16 },
@@ -766,6 +950,32 @@ function burstShapeConfig(shape) {
     anamorphicCross: { count: 4, length: 1.08, cross: 1, petals: 0.08 },
   };
   return map[shape] || map.softStar;
+}
+
+function glareDirectionAngles(direction) {
+  const map = {
+    horizontal: [0],
+    vertical: [Math.PI / 2],
+    diag45: [Math.PI / 4],
+    'diag-45': [-Math.PI / 4],
+    cross: [0, Math.PI / 2],
+    anamorphic: [0, Math.PI / 4],
+  };
+  return map[direction] || [];
+}
+
+function primaryOpticalAxis(x, y, canvas, params) {
+  const angles = glareDirectionAngles(getValue(params, 'glareDirection', 'radial'));
+  if (angles.length) return angles[0];
+
+  const cx = canvas.width * 0.5;
+  const cy = canvas.height * 0.5;
+  if (Math.abs(x - cx) + Math.abs(y - cy) > 4) {
+    return Math.atan2(cy - y, cx - x);
+  }
+
+  const seed = getValue(params, 'imperfectionSeed', 311);
+  return -Math.PI / 7 + (hashNoise(seed, 1440) - 0.5) * 0.22;
 }
 
 function drawStarburstPattern(ctx, x, y, baseRadius, colors, env, params) {
@@ -856,6 +1066,309 @@ function drawStarburstPattern(ctx, x, y, baseRadius, colors, env, params) {
         seed: seed + i * 73,
         complexity: complexity * 0.55,
       });
+    }
+  }
+  ctx.restore();
+}
+
+function drawGlareStructure(ctx, x, y, baseRadius, colors, env, params) {
+  const direction = getValue(params, 'glareDirection', 'radial');
+  const strength = getValue(params, 'angleStrength', 28) / 100;
+  const layers = Math.max(1, Math.round(getValue(params, 'layerCount', 2)));
+  const angles = glareDirectionAngles(direction);
+  if (!angles.length || strength <= 0.01) return;
+
+  const seed = getValue(params, 'imperfectionSeed', 311);
+  const intensity = getValue(params, 'intensity', 78) / 100;
+  const softness = getValue(params, 'softness', 78) / 100;
+  const burstSoftness = getValue(params, 'burstSoftness', 58) / 100;
+  const sourceShape = getValue(params, 'sourceShape', 'round');
+  const shapeBoost = sourceShape === 'anamorphicPoint' ? 1.45
+    : sourceShape === 'cross' ? 1.24
+      : sourceShape === 'star' ? 1.18
+        : sourceShape === 'none' ? 0.72
+          : 1;
+  const isAnamorphic = direction === 'anamorphic';
+  const powerCurve = heroCurve(strength, 0.92, 0.32);
+  const reach = baseRadius * lerp(1.9, isAnamorphic ? 12.5 : 7.6, powerCurve) * lerp(0.86, 1.36, env.hot) * shapeBoost;
+  const widthBase = baseRadius * lerp(0.018, isAnamorphic ? 0.082 : 0.13, softness) * lerp(0.72, 1.36, burstSoftness) * lerp(0.9, 1.34, powerCurve);
+  const centerPower = intensity * env.brightness * lerp(0.34, 1.82, powerCurve) * shapeBoost;
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  angles.forEach((angle, ai) => {
+    const coreLength = reach * lerp(0.18, 0.46, powerCurve);
+    const coreWidth = widthBase * lerp(0.44, 1.22, burstSoftness);
+    withFilter(ctx, `blur(${lerp(5.6, 0.8, powerCurve) * lerp(1.25, 0.78, burstSoftness) * lerp(1.05, 0.68, env.hot)}px)`, () => {
+      drawSoftStreak(ctx, x, y, angle, coreLength, coreWidth, mixRgb(colors.streak, WHITE, 0.3), centerPower * 0.88, {
+        start: -0.48,
+        end: 0.48,
+        seed: seed + ai * 911 + 4200,
+        complexity: 0.2 + powerCurve * 0.3,
+      });
+    });
+
+    drawEllipseRadial(ctx, x, y, coreLength * 0.44, coreWidth * lerp(2.8, 6.2, burstSoftness), [
+      [0, rgba(WHITE, centerPower * 0.72)],
+      [0.18, rgba(colors.streak, centerPower * 0.62)],
+      [0.58, rgba(colors.halo, centerPower * 0.2)],
+      [1, 'rgba(0,0,0,0)'],
+    ], angle);
+
+    drawEllipseRadial(ctx, x, y, coreLength * 0.22, coreWidth * lerp(0.5, 1.3, burstSoftness), [
+      [0, rgba(WHITE, centerPower * 0.95)],
+      [0.3, rgba(colors.amber, centerPower * 0.36)],
+      [1, 'rgba(0,0,0,0)'],
+    ], angle);
+
+    for (let i = 0; i < layers; i++) {
+      const t = layers === 1 ? 0 : i / (layers - 1);
+      const offset = (i - (layers - 1) / 2) * baseRadius * 0.028 * strength;
+      const px = x + Math.cos(angle + Math.PI / 2) * offset;
+      const py = y + Math.sin(angle + Math.PI / 2) * offset;
+      const localReach = reach * lerp(0.66, 1.42, t) * lerp(0.92, 1.12, hashNoise(seed, i + ai * 31 + 4900));
+      const localWidth = widthBase * lerp(3.8, 0.72, t) * lerp(1.18, 0.76, env.hot);
+      const alpha = intensity * env.detail * lerp(0.34, 0.075, t) * lerp(0.72, 2.25, powerCurve);
+      withFilter(ctx, `blur(${lerp(18, 1.8, powerCurve) * lerp(1.18, 0.72, env.hot) * lerp(0.8, 1.25, burstSoftness)}px)`, () => {
+        drawSoftStreak(ctx, px, py, angle, localReach, localWidth, i % 2 ? colors.halo : colors.streak, alpha, {
+          start: -0.5,
+          end: 0.5,
+          seed: seed + i * 53 + ai * 701,
+          complexity: 0.34 + powerCurve * 0.34,
+        });
+      });
+      if (i === layers - 1 || t > 0.45) {
+        drawSoftStreak(ctx, px, py, angle, localReach * 0.78, Math.max(0.6, localWidth * 0.22), mixRgb(colors.streak, WHITE, 0.16), alpha * 0.64, {
+          start: -0.46,
+          end: 0.46,
+          seed: seed + i * 79 + ai * 809,
+          complexity: 0.24 + powerCurve * 0.24,
+        });
+      }
+    }
+
+    const beadCount = Math.max(2, Math.round(lerp(2, 9, powerCurve) * Math.min(1.45, layers / 3)));
+    for (let b = 0; b < beadCount; b++) {
+      const side = b % 2 ? 1 : -1;
+      const d = coreLength * lerp(0.18, 0.92, (b + 1) / (beadCount + 1)) * side;
+      const px = x + Math.cos(angle) * d;
+      const py = y + Math.sin(angle) * d;
+      drawEllipseRadial(ctx, px, py, baseRadius * lerp(0.018, 0.055, powerCurve), baseRadius * lerp(0.006, 0.018, softness), [
+        [0, rgba(WHITE, centerPower * 0.34)],
+        [0.42, rgba(b % 2 ? colors.fringeA : colors.fringeB, centerPower * 0.16)],
+        [1, 'rgba(0,0,0,0)'],
+      ], angle);
+    }
+
+    const filamentAlpha = centerPower * colors.spread * lerp(0.04, 0.14, powerCurve);
+    const sideOffset = widthBase * lerp(1.2, 4.8, burstSoftness);
+    [-1, 1].forEach((side, fi) => {
+      drawSoftStreak(
+        ctx,
+        x + Math.cos(angle + Math.PI / 2) * sideOffset * side,
+        y + Math.sin(angle + Math.PI / 2) * sideOffset * side,
+        angle,
+        reach * lerp(0.28, 0.7, powerCurve),
+        Math.max(0.55, widthBase * lerp(0.18, 0.42, burstSoftness)),
+        fi ? colors.fringeA : colors.fringeB,
+        filamentAlpha,
+        {
+          start: -0.46,
+          end: 0.46,
+          seed: seed + ai * 1031 + fi * 97,
+          complexity: 0.28 + powerCurve * 0.34,
+        },
+      );
+    });
+
+    const ghostCount = Math.max(0, layers - 1);
+    for (let g = 0; g < ghostCount; g++) {
+      const side = g % 2 ? 1 : -1;
+      const d = reach * lerp(0.18, 0.46, (g + 1) / Math.max(1, ghostCount + 1)) * side;
+      const px = x + Math.cos(angle) * d;
+      const py = y + Math.sin(angle) * d;
+      drawEllipseRadial(ctx, px, py, baseRadius * lerp(0.08, 0.18, strength), baseRadius * lerp(0.018, 0.05, softness), [
+        [0, rgba(g % 2 ? colors.fringeA : colors.fringeB, intensity * strength * env.halo * 0.09)],
+        [0.52, rgba(colors.coating, intensity * strength * env.halo * 0.026)],
+        [1, 'rgba(0,0,0,0)'],
+      ], angle);
+    }
+  });
+  ctx.restore();
+}
+
+function drawSoftPolygonGhost(ctx, x, y, radius, sides, color, alpha, rotation = 0) {
+  if (alpha <= 0 || radius <= 0) return;
+  const points = Math.max(5, Math.round(sides));
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rotation);
+  ctx.globalCompositeOperation = 'screen';
+  ctx.filter = `blur(${Math.max(1.5, radius * 0.08)}px)`;
+  ctx.beginPath();
+  for (let i = 0; i < points; i++) {
+    const a = (i / points) * TAU;
+    const r = radius * lerp(0.84, 1.08, hashNoise(points + radius, i + 33));
+    const px = Math.cos(a) * r;
+    const py = Math.sin(a) * r;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  const g = ctx.createRadialGradient(0, 0, radius * 0.12, 0, 0, radius);
+  g.addColorStop(0, rgba(mixRgb(color, WHITE, 0.22), alpha * 0.24));
+  g.addColorStop(0.46, rgba(color, alpha * 0.09));
+  g.addColorStop(0.76, rgba(color, alpha * 0.035));
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.fill();
+  ctx.filter = 'none';
+  ctx.restore();
+}
+
+function drawCinematicVeil(ctx, x, y, canvas, baseRadius, colors, env, params) {
+  const intensity = getValue(params, 'intensity', 78) / 100;
+  const halo = getValue(params, 'haloAmount', 42) / 100;
+  const spread = getValue(params, 'colorSpread', 18) / 100;
+  const bloom = getValue(params, 'bloomExpansion', 52) / 100;
+  const directional = getValue(params, 'angleStrength', 24) / 100;
+  const amount = clamp((intensity * 0.34 + halo * 0.3 + bloom * 0.26 + directional * 0.16) * env.halo);
+  if (amount <= 0.04) return;
+
+  const seed = getValue(params, 'imperfectionSeed', 311);
+  const angle = primaryOpticalAxis(x, y, canvas, params) + (hashNoise(seed, 1580) - 0.5) * 0.34;
+  const span = Math.max(canvas.width, canvas.height);
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  withFilter(ctx, `blur(${lerp(18, 42, bloom)}px)`, () => {
+    drawEllipseRadial(ctx, x, y, span * lerp(0.28, 0.52, bloom), span * lerp(0.16, 0.32, halo), [
+      [0, rgba(mixRgb(colors.bloom, WHITE, 0.18), amount * 0.06)],
+      [0.36, rgba(colors.halo, amount * 0.026)],
+      [0.74, rgba(colors.coating, amount * spread * 0.014)],
+      [1, 'rgba(0,0,0,0)'],
+    ], angle);
+
+    const ox = x - Math.cos(angle) * baseRadius * lerp(0.4, 1.1, spread);
+    const oy = y - Math.sin(angle) * baseRadius * lerp(0.4, 1.1, spread);
+    drawEllipseRadial(ctx, ox, oy, span * 0.44, span * 0.2, [
+      [0, rgba(colors.fringeB, amount * spread * 0.028)],
+      [0.42, rgba(colors.outer, amount * 0.018)],
+      [1, 'rgba(0,0,0,0)'],
+    ], angle + 0.18);
+  });
+  ctx.restore();
+}
+
+function drawCinematicCoatingHalo(ctx, x, y, canvas, baseRadius, colors, env, params) {
+  const halo = getValue(params, 'haloAmount', 42) / 100;
+  const spread = getValue(params, 'colorSpread', 18) / 100;
+  const layers = Math.max(1, Math.round(getValue(params, 'layerCount', 2)));
+  const directionPower = getValue(params, 'angleStrength', 24) / 100;
+  const amount = clamp((halo * 0.58 + spread * 0.34 + directionPower * 0.18 + layers * 0.035) * env.halo);
+  if (amount <= 0.08) return;
+
+  const seed = getValue(params, 'imperfectionSeed', 311);
+  const axis = primaryOpticalAxis(x, y, canvas, params);
+  const maxDim = Math.max(canvas.width, canvas.height);
+  const sourceOffset = baseRadius * lerp(0.1, 0.8, spread);
+  const cx = x - Math.cos(axis) * sourceOffset;
+  const cy = y - Math.sin(axis) * sourceOffset;
+  const count = Math.min(4, Math.max(1, layers + (spread > 0.5 ? 1 : 0)));
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  for (let i = 0; i < count; i++) {
+    const t = count === 1 ? 0 : i / (count - 1);
+    const r = maxDim * lerp(0.24, 0.62, t) * lerp(0.82, 1.18, hashNoise(seed, i + 1660));
+    const rx = r * lerp(0.86, 1.3, hashNoise(seed, i + 1680));
+    const ry = r * lerp(0.44, 0.82, hashNoise(seed, i + 1700));
+    const px = cx + Math.cos(axis + Math.PI) * baseRadius * lerp(0.08, 0.62, t);
+    const py = cy + Math.sin(axis + Math.PI) * baseRadius * lerp(0.08, 0.62, t);
+    const color = i % 3 === 0 ? colors.coating : i % 3 === 1 ? colors.fringeB : colors.fringeA;
+    drawCoatingArcHaze(ctx, px, py, rx, ry, color, amount * lerp(0.22, 0.08, t), {
+      seed: seed + i * 101,
+      count: Math.round(lerp(5, 11, spread)),
+      rotation: axis + lerp(-0.45, 0.45, hashNoise(seed, i + 1720)),
+      breakup: lerp(0.5, 0.82, spread),
+      softness: 0.84,
+    });
+  }
+  ctx.restore();
+}
+
+function drawCinematicGhosts(ctx, x, y, canvas, baseRadius, colors, env, params) {
+  const halo = getValue(params, 'haloAmount', 42) / 100;
+  const spread = getValue(params, 'colorSpread', 18) / 100;
+  const directionPower = getValue(params, 'angleStrength', 24) / 100;
+  const layers = Math.max(1, Math.round(getValue(params, 'layerCount', 2)));
+  const sourceShape = getValue(params, 'sourceShape', 'round');
+  const styleBoost = sourceShape === 'anamorphicPoint' || sourceShape === 'star' || sourceShape === 'diffraction' ? 1.22
+    : sourceShape === 'softBlob' ? 0.78
+      : 1;
+  const amount = clamp((halo * 0.4 + spread * 0.34 + directionPower * 0.34 + layers * 0.05) * env.halo * styleBoost);
+  if (amount <= 0.07) return;
+
+  const seed = getValue(params, 'imperfectionSeed', 311);
+  const axis = primaryOpticalAxis(x, y, canvas, params);
+  const ux = Math.cos(axis);
+  const uy = Math.sin(axis);
+  const pxAxis = -uy;
+  const pyAxis = ux;
+  const maxDim = Math.max(canvas.width, canvas.height);
+  const count = Math.round(lerp(3, 8, clamp(amount)) * Math.min(1.4, 0.75 + layers * 0.18));
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  for (let i = 0; i < count; i++) {
+    const t = (i + 1) / (count + 1);
+    const side = i % 2 ? 1 : -1;
+    const distance = maxDim * lerp(0.1, 0.48, t) * side;
+    const wobble = (hashNoise(seed, i + 1810) - 0.5) * baseRadius * lerp(0.06, 0.32, spread);
+    const gx = x + ux * distance + pxAxis * wobble;
+    const gy = y + uy * distance + pyAxis * wobble;
+    const local = amount * lerp(0.42, 0.08, t) * lerp(0.76, 1.22, hashNoise(seed, i + 1830));
+    const color = i % 4 === 0 ? colors.fringeB : i % 4 === 1 ? colors.coating : i % 4 === 2 ? colors.fringeA : colors.halo;
+    const rx = baseRadius * lerp(0.055, 0.28, hashNoise(seed, i + 1850)) * lerp(0.8, 1.55, spread);
+    const ry = rx * lerp(0.34, 0.88, hashNoise(seed, i + 1870));
+
+    withFilter(ctx, `blur(${lerp(2, 9, t) * lerp(0.7, 1.4, spread)}px)`, () => {
+      drawEllipseRadial(ctx, gx, gy, rx, ry, [
+        [0, rgba(mixRgb(color, WHITE, 0.2), local * 0.34)],
+        [0.38, rgba(color, local * 0.12)],
+        [0.8, rgba(colors.coating, local * 0.026)],
+        [1, 'rgba(0,0,0,0)'],
+      ], axis + (hashNoise(seed, i + 1890) - 0.5) * 0.8);
+    });
+
+    if (i % 2 === 0 && spread > 0.18) {
+      drawCoatingArcHaze(ctx, gx, gy, rx * 1.9, ry * 2.2, color, local * 0.42, {
+        seed: seed + i * 173,
+        count: 4 + Math.round(spread * 5),
+        rotation: axis,
+        breakup: 0.72,
+        softness: 0.86,
+      });
+    }
+
+    if (i % 3 === 1 && amount > 0.28) {
+      drawSoftPolygonGhost(
+        ctx,
+        gx + pxAxis * rx * 0.24,
+        gy + pyAxis * rx * 0.24,
+        rx * lerp(0.55, 1.15, hashNoise(seed, i + 1910)),
+        6 + Math.round(hashNoise(seed, i + 1930) * 3),
+        color,
+        local * 0.34,
+        axis + hashNoise(seed, i + 1950) * TAU,
+      );
+    }
+
+    if (t < 0.72) {
+      drawRadial(ctx, gx, gy, Math.max(1, baseRadius * lerp(0.01, 0.028, hashNoise(seed, i + 1970))), [
+        [0, rgba(WHITE, local * 0.38)],
+        [0.34, rgba(color, local * 0.18)],
+        [1, 'rgba(0,0,0,0)'],
+      ]);
     }
   }
   ctx.restore();
@@ -994,8 +1507,12 @@ export function createGlareEffect() {
         drawInnerBloom(layers.bloom.ctx, x, y, baseRadius, colors, env, renderParams);
         drawOuterBloom(layers.bloom.ctx, x, y, baseRadius, colors, env, renderParams);
         drawHalation(layers.halo.ctx, x, y, baseRadius, colors, env, renderParams);
+        drawCinematicVeil(layers.halo.ctx, x, y, canvas, baseRadius, colors, env, renderParams);
         drawHaloPattern(layers.halo.ctx, x, y, baseRadius, colors, env, renderParams);
+        drawCinematicCoatingHalo(layers.halo.ctx, x, y, canvas, baseRadius, colors, env, renderParams);
+        drawGlareStructure(layers.starburst.ctx, x, y, baseRadius, colors, env, renderParams);
         drawStarburstPattern(layers.starburst.ctx, x, y, baseRadius, colors, env, renderParams);
+        drawCinematicGhosts(layers.detail.ctx, x, y, canvas, baseRadius, colors, env, renderParams);
         drawChromaticEdges(layers.detail.ctx, x, y, baseRadius, colors, env, renderParams);
         drawGlassScatter(layers.detail.ctx, x, y, canvas, baseRadius, colors, env, renderParams, q);
         compositeBloomPasses(ctx, layers, canvas.width, canvas.height, renderParams, env);
@@ -1004,8 +1521,12 @@ export function createGlareEffect() {
         drawInnerBloom(ctx, x, y, baseRadius, colors, env, renderParams);
         drawBurstCore(ctx, x, y, baseRadius, colors, env, renderParams);
         drawHalation(ctx, x, y, baseRadius, colors, env, renderParams);
+        drawCinematicVeil(ctx, x, y, canvas, baseRadius, colors, env, renderParams);
         drawHaloPattern(ctx, x, y, baseRadius, colors, env, renderParams);
+        drawCinematicCoatingHalo(ctx, x, y, canvas, baseRadius, colors, env, renderParams);
+        drawGlareStructure(ctx, x, y, baseRadius, colors, env, renderParams);
         drawStarburstPattern(ctx, x, y, baseRadius, colors, env, renderParams);
+        drawCinematicGhosts(ctx, x, y, canvas, baseRadius, colors, env, renderParams);
         drawChromaticEdges(ctx, x, y, baseRadius, colors, env, renderParams);
         drawGlassScatter(ctx, x, y, canvas, baseRadius, colors, env, renderParams, q);
         drawHotCore(ctx, x, y, baseRadius, colors, env, renderParams);
