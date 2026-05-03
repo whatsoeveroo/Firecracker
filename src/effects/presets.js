@@ -317,19 +317,19 @@ export const BUILT_IN_PRESETS = {
   rays: [
     {
       name: 'Morning God Rays',
-      params: { rayCount: 10, rayLength: 80, angle: 0, softness: 72, opacity: 65, atmosphere: 75 },
+      params: { rayCount: 10, rayLength: 82, angle: 16, softness: 78, opacity: 68, atmosphere: 82, color: '#ffe4a6', sourceX: 42, sourceY: 28, beamWidth: 58, falloff: 74, occlusion: 48, drift: 28 },
     },
     {
       name: 'Divine Light',
-      params: { rayCount: 6, rayLength: 95, angle: 0, softness: 55, opacity: 85, atmosphere: 40 },
+      params: { rayCount: 7, rayLength: 96, angle: 0, softness: 64, opacity: 88, atmosphere: 58, color: '#fff6c8', sourceX: 50, sourceY: 42, beamWidth: 72, falloff: 82, occlusion: 18, drift: 18 },
     },
     {
       name: 'Laser Fan',
-      params: { rayCount: 18, rayLength: 85, angle: 0, softness: 15, opacity: 80, atmosphere: 5 },
+      params: { rayCount: 18, rayLength: 90, angle: 4, softness: 16, opacity: 82, atmosphere: 10, color: '#b8f4ff', sourceX: 50, sourceY: 50, beamWidth: 18, falloff: 48, occlusion: 8, drift: 8 },
     },
     {
       name: 'Halo Burst',
-      params: { rayCount: 24, rayLength: 55, angle: 0, softness: 60, opacity: 60, atmosphere: 55 },
+      params: { rayCount: 24, rayLength: 62, angle: 0, softness: 68, opacity: 62, atmosphere: 68, color: '#ffd6f4', sourceX: 50, sourceY: 50, beamWidth: 42, falloff: 58, occlusion: 26, drift: 36 },
     },
   ],
 
