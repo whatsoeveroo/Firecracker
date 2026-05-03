@@ -32,11 +32,13 @@ export default function ControlPanel({
   userPresets, onPresetLoad, onPresetSave, onPresetDelete,
 }) {
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const isVisible = param => !param.visibleWhen || param.visibleWhen(params);
 
-  const basicParams    = effectDef.params.filter(p => !p.advanced);
-  const advancedParams = effectDef.params.filter(p =>  p.advanced);
+  const basicParams    = effectDef.params.filter(p => !p.advanced && isVisible(p));
+  const advancedParams = effectDef.params.filter(p =>  p.advanced && isVisible(p));
   const hasAdvanced    = advancedParams.length > 0;
   const groups         = groupedParams(basicParams);
+  const advancedGroups = groupedParams(advancedParams);
 
   return (
     <div className="control-panel">
@@ -84,13 +86,23 @@ export default function ControlPanel({
           </button>
           {showAdvanced && (
             <div className="params-list advanced-params">
-              {advancedParams.map(param => (
-                <ParameterSlider
-                  key={param.key}
-                  param={param}
-                  value={params[param.key]}
-                  onChange={onChange}
-                />
+              {advancedGroups.map(({ label, items }) => (
+                <div key={label || '_advanced'} className={label ? 'param-group' : undefined}>
+                  {label && <div className="param-group-label">{label}</div>}
+                  {sectionedParams(items).map(({ label: subgroup, items: subItems }) => (
+                    <Fragment key={subgroup || 'default'}>
+                      {subgroup && <div className="param-subgroup-label">{subgroup}</div>}
+                      {subItems.map(param => (
+                        <ParameterSlider
+                          key={param.key}
+                          param={param}
+                          value={params[param.key]}
+                          onChange={onChange}
+                        />
+                      ))}
+                    </Fragment>
+                  ))}
+                </div>
               ))}
             </div>
           )}
