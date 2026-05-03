@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import EffectSelector from './components/EffectSelector';
 import ControlPanel   from './components/ControlPanel';
 import CanvasPreview  from './components/CanvasPreview';
@@ -59,11 +59,25 @@ function randomizeParams(effectDef) {
   return out;
 }
 
+const COLOR_MODE_STORAGE_KEY = 'firecracker-color-mode';
+
+function getInitialColorMode() {
+  if (typeof window === 'undefined') return 'dark';
+
+  try {
+    const savedMode = window.localStorage.getItem(COLOR_MODE_STORAGE_KEY);
+    return savedMode === 'day' ? 'day' : 'dark';
+  } catch {
+    return 'dark';
+  }
+}
+
 export default function App() {
   const [effectId,    setEffectId]    = useState('fire');
   const [params,      setParams]      = useState(() => getDefaults('fire'));
   const [userPresets, setUserPresets] = useState(() => getUserPresets());
   const [accentKey,   setAccentKey]   = useState('orange');
+  const [colorMode,   setColorMode]   = useState(getInitialColorMode);
 
   const [isPlaying,   setIsPlaying]   = useState(true);
   const [loop,        setLoop]        = useState(true);
@@ -75,6 +89,15 @@ export default function App() {
 
   const canvasRef    = useRef(null);
   const activeEffect = EFFECTS.find(e => e.id === effectId);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = colorMode;
+    try {
+      window.localStorage.setItem(COLOR_MODE_STORAGE_KEY, colorMode);
+    } catch {
+      // The mode still applies for this session when storage is unavailable.
+    }
+  }, [colorMode]);
 
   const handleEffectChange = useCallback((id) => {
     setEffectId(id);
@@ -118,6 +141,24 @@ export default function App() {
           ))}
         </div>
         <div className="header-effect-name">{activeEffect.label}</div>
+        <div className="theme-toggle" role="group" aria-label="Backplate color mode">
+          <button
+            type="button"
+            className={`theme-toggle-btn ${colorMode === 'dark' ? 'active' : ''}`}
+            aria-pressed={colorMode === 'dark'}
+            onClick={() => setColorMode('dark')}
+          >
+            Dark
+          </button>
+          <button
+            type="button"
+            className={`theme-toggle-btn ${colorMode === 'day' ? 'active' : ''}`}
+            aria-pressed={colorMode === 'day'}
+            onClick={() => setColorMode('day')}
+          >
+            Day
+          </button>
+        </div>
       </header>
 
       <PlaybackBar
@@ -155,6 +196,8 @@ export default function App() {
           <ControlPanel
             effectDef={activeEffect}
             params={params}
+            colorMode={colorMode}
+            onColorModeChange={setColorMode}
             onChange={handleParamChange}
             onRandomize={handleRandomize}
             onReset={handleReset}

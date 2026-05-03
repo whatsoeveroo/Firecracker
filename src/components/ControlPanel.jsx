@@ -27,7 +27,7 @@ function sectionedParams(items) {
 }
 
 export default function ControlPanel({
-  effectDef, params, onChange,
+  effectDef, params, colorMode, onColorModeChange, onChange,
   onRandomize, onReset, onExport,
   userPresets, onPresetLoad, onPresetSave, onPresetDelete,
 }) {
@@ -42,6 +42,33 @@ export default function ControlPanel({
 
   return (
     <div className="control-panel">
+      <div className="appearance-panel">
+        <div>
+          <div className="section-label appearance-label">BACKPLATE</div>
+          <div className="appearance-hint">Use Day for smoke and burnout detail.</div>
+        </div>
+        <div className="theme-toggle panel-theme-toggle" role="group" aria-label="Backplate color mode">
+          <button
+            type="button"
+            className={`theme-toggle-btn ${colorMode === 'dark' ? 'active' : ''}`}
+            aria-pressed={colorMode === 'dark'}
+            onClick={() => onColorModeChange('dark')}
+          >
+            Dark
+          </button>
+          <button
+            type="button"
+            className={`theme-toggle-btn ${colorMode === 'day' ? 'active' : ''}`}
+            aria-pressed={colorMode === 'day'}
+            onClick={() => onColorModeChange('day')}
+          >
+            Day
+          </button>
+        </div>
+      </div>
+
+      <div className="divider" />
+
       <PresetPanel
         effectId={effectDef.id}
         currentParams={params}
