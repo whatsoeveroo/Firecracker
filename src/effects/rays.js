@@ -321,7 +321,6 @@ export function createRaysEffect() {
 
       // ── animation ──────────────────────────────────────────────────────────
       const driftPhase  = phase * (0.035 + driftStr * 0.10);
-      const turbPhase   = phase;
       const flickerVal  = 1 + (valueNoise(phase * 2.6, 1.4, 3) - 0.5) * flickAmp;
       const breathVal   = 1 + Math.sin(phase * 0.62) * breathAmp;
       const globalMod   = opa * flickerVal * breathVal;
