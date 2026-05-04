@@ -7,15 +7,11 @@
   --bg:           #0c0c0e;
   --bg-surface:   #111115;
   --bg-raised:    #18181e;
-  --bg-hover:     #20202c;
   --border:       #252530;
   --border-soft:  #1c1c26;
   --text:         #b0b0c2;
   --text-dim:     #585870;
   --text-bright:  #eeeef8;
-  --danger-subtle: rgba(255,60,50,0.08);
-  --preview-backplate: #0c0c0e;
-  --scrollbar-hover: #363650;
 
   /* accent defaults — overridden via inline style on .app */
   --accent:           #e85d26;
@@ -32,21 +28,6 @@
   --radius-sm:    4px;
   --font:         'Inter', system-ui, -apple-system, sans-serif;
   --font-display: 'Plus Jakarta Sans', 'Inter', sans-serif;
-}
-
-:root[data-theme='day'] {
-  --bg:           #eef0f3;
-  --bg-surface:   #f8f8fa;
-  --bg-raised:    #ffffff;
-  --bg-hover:     #eceef2;
-  --border:       #d2d5dc;
-  --border-soft:  #e2e4e9;
-  --text:         #3b3d46;
-  --text-dim:     #787e8c;
-  --text-bright:  #15171c;
-  --danger-subtle: rgba(200,30,30,0.08);
-  --preview-backplate: #ffffff;
-  --scrollbar-hover: #adb3c0;
 }
 
 html, body, #root {
@@ -130,42 +111,6 @@ html, body, #root {
   transition: color 0.2s;
 }
 
-.theme-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--bg-raised);
-  flex-shrink: 0;
-}
-
-.theme-toggle-btn {
-  min-width: 42px;
-  height: 24px;
-  border: 0;
-  border-radius: 3px;
-  background: transparent;
-  color: var(--text-dim);
-  cursor: pointer;
-  font-family: var(--font);
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  transition: background 0.12s, color 0.12s;
-}
-
-.theme-toggle-btn:hover {
-  color: var(--text);
-}
-
-.theme-toggle-btn.active {
-  background: var(--accent);
-  color: #fff;
-}
-
 /* Accent color picker */
 .accent-picker {
   display: flex;
@@ -187,7 +132,7 @@ html, body, #root {
 .accent-swatch:hover { transform: scale(1.25); }
 
 .accent-swatch.active {
-  border-color: var(--text-bright);
+  border-color: rgba(255,255,255,0.45);
   transform: scale(1.2);
 }
 
@@ -285,7 +230,7 @@ html, body, #root {
   display: flex;
   align-items: stretch;
   justify-content: stretch;
-  background: var(--preview-backplate);
+  background: var(--bg);
   position: relative;
   overflow: hidden;
 }
@@ -295,7 +240,6 @@ html, body, #root {
   flex: 1;
   display: flex;
   align-items: stretch;
-  background: var(--preview-backplate);
 }
 
 .preview-canvas {
@@ -371,29 +315,6 @@ html, body, #root {
   flex: 1;
 }
 
-.appearance-panel {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.appearance-label {
-  margin-bottom: 3px;
-  padding: 0;
-}
-
-.appearance-hint {
-  color: var(--text-dim);
-  font-size: 9px;
-  line-height: 1.35;
-  opacity: 0.72;
-}
-
-.panel-theme-toggle .theme-toggle-btn {
-  min-width: 44px;
-}
-
 .params-list {
   display: flex;
   flex-direction: column;
@@ -425,7 +346,7 @@ html, body, #root {
 
 .select-input:hover  { border-color: var(--accent-dim); }
 .select-input:focus  { border-color: var(--accent); }
-.select-input option { background: var(--bg-raised); color: var(--text); }
+.select-input option { background: #18181e; color: var(--text); }
 
 /* ── Param groups ── */
 .param-group {
@@ -740,7 +661,7 @@ html, body, #root {
 }
 
 .preset-chip:hover {
-  background: var(--bg-hover);
+  background: #20202c;
   color: var(--text-bright);
 }
 
@@ -772,7 +693,7 @@ html, body, #root {
 
 .preset-delete:hover {
   color: #ff6050;
-  background: var(--danger-subtle);
+  background: rgba(255,60,50,0.08);
   opacity: 1;
 }
 
@@ -808,7 +729,7 @@ html, body, #root {
 }
 
 .action-btn:hover {
-  background: var(--bg-hover);
+  background: #1e1e28;
   color: var(--text);
 }
 
@@ -841,7 +762,7 @@ html, body, #root {
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-hover); }
+::-webkit-scrollbar-thumb:hover { background: #363650; }
 
 /* ──────────────────────────────────────────────
    PLAYBACK BAR
