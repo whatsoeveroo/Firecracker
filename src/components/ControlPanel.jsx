@@ -27,19 +27,48 @@ function sectionedParams(items) {
 }
 
 export default function ControlPanel({
-  effectDef, params, onChange,
+  effectDef, params, colorMode, onColorModeChange, onChange,
   onRandomize, onReset, onExport,
   userPresets, onPresetLoad, onPresetSave, onPresetDelete,
 }) {
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const isVisible = param => !param.visibleWhen || param.visibleWhen(params);
 
-  const basicParams    = effectDef.params.filter(p => !p.advanced);
-  const advancedParams = effectDef.params.filter(p =>  p.advanced);
+  const basicParams    = effectDef.params.filter(p => !p.advanced && isVisible(p));
+  const advancedParams = effectDef.params.filter(p =>  p.advanced && isVisible(p));
   const hasAdvanced    = advancedParams.length > 0;
   const groups         = groupedParams(basicParams);
+  const advancedGroups = groupedParams(advancedParams);
 
   return (
     <div className="control-panel">
+      <div className="appearance-panel">
+        <div>
+          <div className="section-label appearance-label">BACKPLATE</div>
+          <div className="appearance-hint">Use Day for smoke and burnout detail.</div>
+        </div>
+        <div className="theme-toggle panel-theme-toggle" role="group" aria-label="Backplate color mode">
+          <button
+            type="button"
+            className={`theme-toggle-btn ${colorMode === 'dark' ? 'active' : ''}`}
+            aria-pressed={colorMode === 'dark'}
+            onClick={() => onColorModeChange('dark')}
+          >
+            Dark
+          </button>
+          <button
+            type="button"
+            className={`theme-toggle-btn ${colorMode === 'day' ? 'active' : ''}`}
+            aria-pressed={colorMode === 'day'}
+            onClick={() => onColorModeChange('day')}
+          >
+            Day
+          </button>
+        </div>
+      </div>
+
+      <div className="divider" />
+
       <PresetPanel
         effectId={effectDef.id}
         currentParams={params}
@@ -84,13 +113,23 @@ export default function ControlPanel({
           </button>
           {showAdvanced && (
             <div className="params-list advanced-params">
-              {advancedParams.map(param => (
-                <ParameterSlider
-                  key={param.key}
-                  param={param}
-                  value={params[param.key]}
-                  onChange={onChange}
-                />
+              {advancedGroups.map(({ label, items }) => (
+                <div key={label || '_advanced'} className={label ? 'param-group' : undefined}>
+                  {label && <div className="param-group-label">{label}</div>}
+                  {sectionedParams(items).map(({ label: subgroup, items: subItems }) => (
+                    <Fragment key={subgroup || 'default'}>
+                      {subgroup && <div className="param-subgroup-label">{subgroup}</div>}
+                      {subItems.map(param => (
+                        <ParameterSlider
+                          key={param.key}
+                          param={param}
+                          value={params[param.key]}
+                          onChange={onChange}
+                        />
+                      ))}
+                    </Fragment>
+                  ))}
+                </div>
               ))}
             </div>
           )}
