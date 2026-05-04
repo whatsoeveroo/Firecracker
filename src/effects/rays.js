@@ -115,13 +115,16 @@ function makeCausticSeed(i) {
 // unlike radial gradients which bleed in all directions and destroy gaps.
 
 function drawRibbon(ctx, sx, sy, angle, len, halfWFn, colorFn, baseAlpha, densityFn) {
-  const SEGS = 8;
+  const SEGS = 24;
   const cosA = Math.cos(angle), sinA = Math.sin(angle);
   const pc = -sinA, ps = cosA; // perpendicular direction
   for (let s = 0; s < SEGS; s++) {
-    const t0 = s / SEGS, t1 = (s + 1) / SEGS, tm = (t0 + t1) * 0.5;
-    const d = densityFn(tm);
-    const peakA = baseAlpha * d;
+    // Slight overlap between segments to eliminate seam steps
+    const t0 = Math.max(0, (s - 0.1) / SEGS), t1 = Math.min(1, (s + 1.1) / SEGS);
+    const tm = (t0 + t1) * 0.5;
+    // Sample density at both endpoints and average for smooth cross-segment transitions
+    const d = (densityFn(t0) + densityFn(tm) + densityFn(t1)) * 0.333;
+    const peakA = baseAlpha * d * 0.85; // 0.85 compensates for overlap brightness
     if (peakA < 0.002) continue;
     const hw0 = halfWFn(t0), hw1 = halfWFn(t1), hw = (hw0 + hw1) * 0.5;
     if (hw < 0.4) continue;
@@ -183,32 +186,32 @@ function spawnParticle(sx, sy, maxLen, dir, spread, mode) {
   };
   if (mode === 'underwater') {
     return { ...base, type: 'bubble',
-      vx: (Math.random() - 0.5) * 0.18,
-      vy: -(0.06 + Math.random() * 0.18),
+      vx: (Math.random() - 0.5) * 0.28,
+      vy: -(0.09 + Math.random() * 0.28),
       size: 0.8 + Math.random() * 2.2,
       decay: 0.0006 + Math.random() * 0.0012,
     };
   }
   if (mode === 'foggy' || mode === 'misty') {
     return { ...base, type: 'wisp',
-      vx: (Math.random() - 0.5) * 0.14,
-      vy: -(0.004 + Math.random() * 0.018),
+      vx: (Math.random() - 0.5) * 0.25,
+      vy: -(0.007 + Math.random() * 0.032),
       size: 3.5 + Math.random() * 9.0,
       decay: 0.0004 + Math.random() * 0.0008,
     };
   }
   if (mode === 'smoky') {
     return { ...base, type: 'wisp',
-      vx: (Math.random() - 0.5) * 0.32,
-      vy: -(0.010 + Math.random() * 0.045),
+      vx: (Math.random() - 0.5) * 0.58,
+      vy: -(0.018 + Math.random() * 0.082),
       size: 2.0 + Math.random() * 5.5,
       decay: 0.0007 + Math.random() * 0.0016,
     };
   }
   // dusty / clean default
   return { ...base, type: 'mote',
-    vx: (Math.random() - 0.5) * 0.26,
-    vy: -(0.014 + Math.random() * 0.088),
+    vx: (Math.random() - 0.5) * 0.42,
+    vy: -(0.032 + Math.random() * 0.18),
     size: 0.7 + Math.random() * 3.2,
     decay: 0.0010 + Math.random() * 0.0022,
   };
@@ -253,12 +256,14 @@ export function createRaysEffect() {
         colorBlend      = 50,
         motionAmount    = 50,   drift           = 30,
         flickerAmount   = 8,    breathing       = 18,
-        turbulenceSpeed = 22,
+        animationSpeed  = 55,   turbulenceSpeed = 22,
       } = params;
 
       // ── timing ─────────────────────────────────────────────────────────────
       const motionScale = clamp(motionAmount / 100);
-      const turbRate    = (0.04 + (turbulenceSpeed / 100) * 0.22) * motionScale;
+      const animSpeed   = clamp(animationSpeed / 100);
+      const animMul     = 0.6 + animSpeed * 1.4;
+      const turbRate    = (0.04 + (turbulenceSpeed / 100) * 0.22) * motionScale * animMul;
       phase     += dt * turbRate;
       totalTime += dt;
 
@@ -279,8 +284,8 @@ export function createRaysEffect() {
       // ── derived values ──────────────────────────────────────────────────────
       const baseDir    = (direction * Math.PI) / 180;
       const sourceFlow = atmo.motionMul * motionScale;
-      const flutterX   = (valueNoise(phase * 0.52, 2.1, 151) - 0.5) * W * 0.010 * sourceFlow;
-      const flutterY   = (valueNoise(phase * 0.47, 8.8, 157) - 0.5) * H * 0.008 * sourceFlow;
+      const flutterX   = (valueNoise(phase * 0.52, 2.1, 151) - 0.5) * W * 0.015 * sourceFlow;
+      const flutterY   = (valueNoise(phase * 0.47, 8.8, 157) - 0.5) * H * 0.013 * sourceFlow;
       const dirFlutter = (valueNoise(phase * 0.36, 4.5, 163) - 0.5) * 0.030 * sourceFlow;
       const sx         = W * (sourceX / 100) + flutterX;
       const sy         = H * (sourceY / 100) + flutterY;
@@ -307,7 +312,7 @@ export function createRaysEffect() {
       const noiseStr    = clamp(noiseAmount / 100) * atmo.noiseMul;
       const nScale      = 0.7 + (noiseScale / 100) * 2.4;
       const occStr      = clamp(occlusionGaps / 100) * atmo.occMul;
-      const driftStr    = clamp(drift / 100) * motionScale;
+      const driftStr    = clamp(drift / 100) * motionScale * (0.5 + animSpeed * 1.2);
       const breathAmp   = clamp(breathing / 100) * 0.055 * motionScale;
       const flickAmp    = clamp(flickerAmount / 100) * 0.16;
       const strkSoft    = clamp(streakSoftness / 100) * atmo.strkMul;
@@ -322,7 +327,7 @@ export function createRaysEffect() {
       const globalMod   = opa * flickerVal * breathVal;
 
       // Propagating occlusion wave — travels source→tip over 5–10 s
-      const waveRate  = (0.3 + (driftSpeed / 100) * 1.2) * atmo.waveSpeed * motionScale;
+      const waveRate  = (0.3 + (driftSpeed / 100) * 1.2) * atmo.waveSpeed * motionScale * (0.5 + animSpeed * 1.5);
       const wavePhase = totalTime * waveRate;
 
       // Atmospheric 2D current — coherent lateral flow field
@@ -335,7 +340,7 @@ export function createRaysEffect() {
       const clusterAngles = Array.from({ length: clusterCount }, (_, k) => {
         const evenSlot  = k / clusterCount - 0.5 + 0.5 / clusterCount;
         const pertSlot  = evenSlot + (hash(k, k * 5.31, 99) - 0.5) * 0.30;
-        const drift     = (fbm(k * 1.7 + phase * 0.12, k * 2.3, 77, 2) - 0.5) * halfSpread * 0.18 * motionScale;
+        const drift     = (fbm(k * 1.7 + phase * 0.12, k * 2.3, 77, 2) - 0.5) * halfSpread * 0.30 * motionScale;
         return dir + pertSlot * halfSpread * 2.0 * 0.80 + drift;
       });
       const shaftAngles = Array.from({ length: shaftCount }, (_, si) => {
@@ -447,7 +452,8 @@ export function createRaysEffect() {
           const hcy = sy + Math.sin(layerAngle) * haloMidLen;
           const hW  = fieldW * seed.widthMul * (0.18 + soft * 0.14) * atmo.ribbonW;
           const hStretchRatio = Math.min(12, layerLen * 0.34 / Math.max(hW, 1));
-          const haloAlpha = haloStrScale * seed.intensity * angEnv * 0.072;
+          const haloFade  = 1 - haloMidLen / maxLen * 0.72; // fades toward tip
+          const haloAlpha = haloStrScale * seed.intensity * angEnv * haloFade * 0.072;
           if (haloAlpha < 0.003) continue;
 
           const haloColor = mixRgb(mixRgb(hazeRgb, rayRgb, blendFrac * 0.42), glowRgb, 0.12);
@@ -506,17 +512,18 @@ export function createRaysEffect() {
           const bandHalfW = t => bandHW * smoothstep(t * 10) * (1 - t * 0.18);
           const coreHalfW = t => coreHW * smoothstep(t * 10) * (1 - t * 0.22);
 
-          // densityFn: long falloff × propagating wave × occlusion noise
+          // densityFn: dramatic falloff × near-source boost × propagating wave × occlusion
           const densityFn = tm => {
-            const longFall = Math.pow(1 - tm, 0.88 + fall * 3.25) * smoothstep(tm * 7);
-            const waveU    = tm * nScale * 1.6 + wavePhase;
+            const longFall   = Math.pow(1 - tm, 1.4 + fall * 4.8) * smoothstep(tm * 7);
+            const nearBoost  = 1 + (1 - clamp(tm * 3)) * 0.8;
+            const waveU      = tm * nScale * 1.6 + wavePhase;
             const waveV    = li * 0.43 + seed.sideBias * 0.42;
             const smokeN   = fbm(waveU, waveV, seed.phase + 71, 4);
             const occN     = fbm(tm * nScale * 3.0 - wavePhase * 0.6, li * 0.82, seed.phase + 79, 2);
             const laneCut  = lerp(1, smoothstep(clamp((occN - 0.22) / 0.64)), occStr * 0.72);
             const densN    = lerp(1, lerp(0.26, 1.14, smokeN), noiseStr * 0.92);
             const breathV  = 1 + Math.sin(phase * seed.breath + seed.phase + li * 0.9) * breathAmp * 3.2;
-            return longFall * laneCut * densN * breathV;
+            return longFall * nearBoost * laneCut * densN * breathV;
           };
 
           const colorFn = tm => mixRgb(layerRgb, hazeRgb, clamp((tm - 0.55) * 2.0) * blendFrac * 0.3);
@@ -550,7 +557,7 @@ export function createRaysEffect() {
           const halfWFn = t => spineHW * smoothstep(t * 10) * (1 - t * 0.20);
 
           const densityFn = tm => {
-            const longFall = Math.pow(1 - tm, 0.40 + fall * 2.2) * smoothstep(tm * 9);
+            const longFall = Math.pow(1 - tm, 0.85 + fall * 3.4) * smoothstep(tm * 9);
             const waveU    = tm * nScale * 1.7 + wavePhase;
             const densN    = fbm(waveU, si * 0.70, seed.phase, 3);
             const occN     = fbm(tm * nScale * 3.4 + wavePhase * 0.5, si * 1.22, seed.phase + 17, 2);
@@ -638,7 +645,7 @@ export function createRaysEffect() {
       // 2. Shaft halos (heavy blur — saturated column glow)
       const haloBlur = 30 + soft * 18 + strkSoft * 8;
       ctx.filter = `blur(${haloBlur}px)`;
-      ctx.globalAlpha = atmo.haloStr * 0.6;
+      ctx.globalAlpha = atmo.haloStr * 0.40;
       ctx.drawImage(halo.canvas, 0, 0, W, H);
       ctx.globalAlpha = 1;
 
@@ -651,7 +658,7 @@ export function createRaysEffect() {
 
       // 4. Area ribbons — soft secondary pass
       ctx.filter = `blur(${areaBlur * 2.8 + 10}px)`;
-      ctx.globalAlpha = 0.24;
+      ctx.globalAlpha = 0.14;
       ctx.drawImage(area.canvas, 0, 0, W, H);
       ctx.globalAlpha = 1;
 

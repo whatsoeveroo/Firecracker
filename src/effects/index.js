@@ -455,7 +455,7 @@ export const EFFECTS = [
       // ANIMATION
       motionAmount:   60,   drift:          42,
       flickerAmount:  7,    breathing:      26,
-      turbulenceSpeed:28,
+      animationSpeed: 55,   turbulenceSpeed:28,
     },
     params: [
       // ── LIGHT SOURCE ──
@@ -500,6 +500,7 @@ export const EFFECTS = [
       { key: 'colorBlend',  label: 'Color Blend', min: 0, max: 100, group: 'Color', hint: 'Mono ↔ Layered' },
       // ── ANIMATION ──
       { key: 'motionAmount',   label: 'Motion Amount',   min: 0,  max: 100, group: 'Animation' },
+      { key: 'animationSpeed', label: 'Animation Speed', min: 0,  max: 100, group: 'Animation' },
       { key: 'drift',          label: 'Drift',           min: 0,  max: 100, group: 'Animation' },
       { key: 'flickerAmount',  label: 'Flicker',         min: 0,  max: 100, group: 'Animation' },
       { key: 'breathing',      label: 'Breathing',       min: 0,  max: 100, group: 'Animation' },
