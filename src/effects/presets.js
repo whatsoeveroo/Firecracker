@@ -177,20 +177,36 @@ export const BUILT_IN_PRESETS = {
 
   rays: [
     {
-      name: 'Morning God Rays',
-      params: { rayCount: 10, rayLength: 80, angle: 0, softness: 72, opacity: 65, atmosphere: 75 },
-    },
-    {
       name: 'Divine Light',
-      params: { rayCount: 6, rayLength: 95, angle: 0, softness: 55, opacity: 85, atmosphere: 40 },
+      params: { sourceX: 56, sourceY: 0, direction: 92, spreadAngle: 66, beamLength: 114, beamWidth: 84, sourceGlow: 100, rayCount: 15, intensity: 94, softness: 92, density: 76, falloff: 90, atmosphericHaze: 90, edgeFeather: 98, noiseAmount: 56, noiseScale: 36, occlusionGaps: 34, dustAmount: 46, driftSpeed: 18, atmosphereMode: 'misty', rayColor: '#fff0c8', hazeColor: '#c09040', glowColor: '#ffffff', colorBlend: 68, streakSoftness: 60, motionAmount: 38, flickerAmount: 3, drift: 24, breathing: 32, turbulenceSpeed: 14 },
     },
     {
-      name: 'Laser Fan',
-      params: { rayCount: 18, rayLength: 85, angle: 0, softness: 15, opacity: 80, atmosphere: 5 },
+      name: 'Window Sunbeam',
+      params: { sourceX: 92, sourceY: 6, direction: 150, spreadAngle: 24, beamLength: 104, beamWidth: 42, sourceGlow: 82, rayCount: 9, intensity: 90, softness: 66, density: 88, falloff: 66, atmosphericHaze: 80, edgeFeather: 78, noiseAmount: 82, noiseScale: 62, occlusionGaps: 86, dustAmount: 96, driftSpeed: 38, atmosphereMode: 'dusty', rayColor: '#ffb840', hazeColor: '#a06820', glowColor: '#fff0c8', colorBlend: 60, streakSoftness: 30, motionAmount: 54, flickerAmount: 7, drift: 46, breathing: 12, turbulenceSpeed: 22 },
     },
     {
-      name: 'Halo Burst',
-      params: { rayCount: 24, rayLength: 55, angle: 0, softness: 60, opacity: 60, atmosphere: 55 },
+      name: 'Forest Morning',
+      params: { sourceX: 66, sourceY: 0, direction: 108, spreadAngle: 86, beamLength: 106, beamWidth: 78, sourceGlow: 60, rayCount: 20, intensity: 72, softness: 88, density: 88, falloff: 70, atmosphericHaze: 86, edgeFeather: 94, noiseAmount: 98, noiseScale: 70, occlusionGaps: 98, dustAmount: 56, driftSpeed: 32, atmosphereMode: 'misty', rayColor: '#c8e060', hazeColor: '#60a030', glowColor: '#eeffc0', colorBlend: 78, streakSoftness: 58, motionAmount: 50, flickerAmount: 6, drift: 44, breathing: 26, turbulenceSpeed: 24 },
+    },
+    {
+      name: 'Stage Spotlight',
+      params: { sourceX: 14, sourceY: 2, direction: 56, spreadAngle: 18, beamLength: 116, beamWidth: 30, sourceGlow: 88, rayCount: 6, intensity: 94, softness: 62, density: 80, falloff: 60, atmosphericHaze: 88, edgeFeather: 70, noiseAmount: 62, noiseScale: 38, occlusionGaps: 42, dustAmount: 72, driftSpeed: 22, atmosphereMode: 'smoky', rayColor: '#c8e0ff', hazeColor: '#7090b0', glowColor: '#ffffff', colorBlend: 36, streakSoftness: 22, motionAmount: 30, flickerAmount: 18, drift: 14, breathing: 8, turbulenceSpeed: 26 },
+    },
+    {
+      name: 'Underwater Shaft',
+      params: { sourceX: 46, sourceY: 0, direction: 90, spreadAngle: 56, beamLength: 120, beamWidth: 92, sourceGlow: 48, rayCount: 15, intensity: 58, softness: 98, density: 98, falloff: 48, atmosphericHaze: 98, edgeFeather: 98, noiseAmount: 86, noiseScale: 84, occlusionGaps: 48, dustAmount: 94, driftSpeed: 64, atmosphereMode: 'underwater', rayColor: '#30c0f0', hazeColor: '#0870b8', glowColor: '#b0f0ff', colorBlend: 86, streakSoftness: 84, motionAmount: 82, flickerAmount: 2, drift: 70, breathing: 50, turbulenceSpeed: 58 },
+    },
+    {
+      name: 'Smoky Room',
+      params: { sourceX: 88, sourceY: 20, direction: 157, spreadAngle: 50, beamLength: 92, beamWidth: 96, sourceGlow: 44, rayCount: 12, intensity: 50, softness: 98, density: 98, falloff: 76, atmosphericHaze: 98, edgeFeather: 98, noiseAmount: 94, noiseScale: 42, occlusionGaps: 74, dustAmount: 94, driftSpeed: 26, atmosphereMode: 'smoky', rayColor: '#c8b890', hazeColor: '#706048', glowColor: '#ffe8b0', colorBlend: 82, streakSoftness: 74, motionAmount: 42, flickerAmount: 3, drift: 34, breathing: 16, turbulenceSpeed: 18 },
+    },
+    {
+      name: 'Cloud Break',
+      params: { sourceX: 54, sourceY: 0, direction: 92, spreadAngle: 84, beamLength: 118, beamWidth: 88, sourceGlow: 98, rayCount: 18, intensity: 86, softness: 94, density: 80, falloff: 92, atmosphericHaze: 92, edgeFeather: 98, noiseAmount: 90, noiseScale: 28, occlusionGaps: 90, dustAmount: 28, driftSpeed: 22, atmosphereMode: 'misty', rayColor: '#ffe8b8', hazeColor: '#c09848', glowColor: '#ffffff', colorBlend: 60, streakSoftness: 50, motionAmount: 34, flickerAmount: 4, drift: 28, breathing: 34, turbulenceSpeed: 16 },
+    },
+    {
+      name: 'Horror Flashlight',
+      params: { sourceX: 2, sourceY: 56, direction: 346, spreadAngle: 15, beamLength: 98, beamWidth: 24, sourceGlow: 32, rayCount: 5, intensity: 82, softness: 48, density: 76, falloff: 54, atmosphericHaze: 78, edgeFeather: 54, noiseAmount: 98, noiseScale: 80, occlusionGaps: 92, dustAmount: 86, driftSpeed: 28, atmosphereMode: 'foggy', rayColor: '#a8b8cc', hazeColor: '#4c6070', glowColor: '#c0d0e0', colorBlend: 42, streakSoftness: 28, motionAmount: 50, flickerAmount: 34, drift: 18, breathing: 5, turbulenceSpeed: 44 },
     },
   ],
 

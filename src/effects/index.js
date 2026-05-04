@@ -192,20 +192,79 @@ export const EFFECTS = [
     icon: 'rays',
     factory: createRaysEffect,
     defaults: {
-      rayCount:   8,
-      rayLength:  70,
-      angle:      0,
-      softness:   60,
-      opacity:    70,
-      atmosphere: 40,
+      // LIGHT SOURCE
+      sourceX:        6,    sourceY:        0,
+      direction:      34,   spreadAngle:    38,
+      beamLength:     104,  beamWidth:      56,
+      sourceGlow:     94,
+      // VOLUME
+      intensity:      86,   softness:       78,
+      density:        82,   falloff:        86,
+      atmosphericHaze:82,   edgeFeather:    92,
+      // STREAKS
+      rayCount:       11,   streakSoftness: 42,
+      occlusionGaps:  62,   noiseAmount:    72,
+      noiseScale:     52,   dustAmount:     70,
+      driftSpeed:     30,
+      // ATMOSPHERE
+      atmosphereMode: 'dusty',
+      // COLOR (direct 3-color system)
+      rayColor:       '#ffcc77',
+      hazeColor:      '#c08830',
+      glowColor:      '#ffffff',
+      colorBlend:     52,
+      // ANIMATION
+      motionAmount:   60,   drift:          42,
+      flickerAmount:  7,    breathing:      26,
+      turbulenceSpeed:28,
     },
     params: [
-      { key: 'rayCount',   label: 'Ray Count',   min: 2,  max: 24 },
-      { key: 'rayLength',  label: 'Length',      min: 10, max: 100 },
-      { key: 'angle',      label: 'Rotation',    min: 0,  max: 360 },
-      { key: 'softness',   label: 'Softness',    min: 0,  max: 100 },
-      { key: 'opacity',    label: 'Opacity',     min: 10, max: 100 },
-      { key: 'atmosphere', label: 'Atmosphere',  min: 0,  max: 100, hint: 'Haze + dust' },
+      // ── LIGHT SOURCE ──
+      { key: 'sourceX',     label: 'Source X',    min: 0,  max: 100, group: 'Light Source' },
+      { key: 'sourceY',     label: 'Source Y',    min: 0,  max: 100, group: 'Light Source' },
+      { key: 'direction',   label: 'Direction',   min: 0,  max: 360, group: 'Light Source' },
+      { key: 'spreadAngle', label: 'Spread Angle',min: 5,  max: 120, group: 'Light Source' },
+      { key: 'beamLength',  label: 'Beam Length', min: 20, max: 120, group: 'Light Source' },
+      { key: 'beamWidth',   label: 'Field Width', min: 8,  max: 100, group: 'Light Source' },
+      { key: 'sourceGlow',  label: 'Source Glow', min: 0,  max: 100, group: 'Light Source' },
+      // ── VOLUME ──
+      { key: 'rayCount',       label: 'Ray Count',       min: 1,  max: 24,  group: 'Volume' },
+      { key: 'intensity',      label: 'Intensity',       min: 5,  max: 100, group: 'Volume' },
+      { key: 'softness',       label: 'Softness',        min: 0,  max: 100, group: 'Volume' },
+      { key: 'density',        label: 'Density',         min: 0,  max: 100, group: 'Volume' },
+      { key: 'falloff',        label: 'Falloff',         min: 0,  max: 100, group: 'Volume' },
+      { key: 'atmosphericHaze',label: 'Atmospheric Haze',min: 0,  max: 100, group: 'Volume' },
+      { key: 'edgeFeather',    label: 'Edge Feather',    min: 0,  max: 100, group: 'Volume' },
+      // ── STREAKS ──
+      { key: 'streakSoftness', label: 'Streak Softness', min: 0,  max: 100, group: 'Streaks', hint: 'Crisp ↔ Dreamy' },
+      { key: 'occlusionGaps',  label: 'Occlusion Gaps',  min: 0,  max: 100, group: 'Streaks' },
+      { key: 'noiseAmount',    label: 'Noise Amount',    min: 0,  max: 100, group: 'Streaks' },
+      { key: 'noiseScale',     label: 'Noise Scale',     min: 5,  max: 100, group: 'Streaks' },
+      { key: 'dustAmount',     label: 'Dust Amount',     min: 0,  max: 100, group: 'Streaks' },
+      { key: 'driftSpeed',     label: 'Particle Drift',  min: 0,  max: 100, group: 'Streaks' },
+      // ── ATMOSPHERE ──
+      {
+        key: 'atmosphereMode', label: 'Atmosphere Type', type: 'select', group: 'Atmosphere',
+        options: [
+          { value: 'clean',      label: 'Clean Air'       },
+          { value: 'dusty',      label: 'Dusty Room'      },
+          { value: 'foggy',      label: 'Foggy / Misty'   },
+          { value: 'smoky',      label: 'Smoky Room'      },
+          { value: 'underwater', label: 'Underwater'      },
+          { value: 'misty',      label: 'Cathedral / Airy'},
+        ],
+      },
+      // ── COLOR ──
+      { key: 'rayColor',    label: 'Ray Color',   type: 'color', group: 'Color' },
+      { key: 'hazeColor',   label: 'Haze Color',  type: 'color', group: 'Color' },
+      { key: 'glowColor',   label: 'Glow Color',  type: 'color', group: 'Color' },
+      { key: 'colorBlend',  label: 'Color Blend', min: 0, max: 100, group: 'Color', hint: 'Mono ↔ Layered' },
+      // ── ANIMATION ──
+      { key: 'motionAmount',   label: 'Motion Amount',   min: 0,  max: 100, group: 'Animation' },
+      { key: 'drift',          label: 'Drift',           min: 0,  max: 100, group: 'Animation' },
+      { key: 'flickerAmount',  label: 'Flicker',         min: 0,  max: 100, group: 'Animation' },
+      { key: 'breathing',      label: 'Breathing',       min: 0,  max: 100, group: 'Animation' },
+      { key: 'turbulenceSpeed',label: 'Turbulence Speed',min: 0,  max: 100, group: 'Animation' },
     ],
   },
   {
