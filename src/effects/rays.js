@@ -109,49 +109,10 @@ function makeCausticSeed(i) {
   };
 }
 
-// ─── ribbon drawing ───────────────────────────────────────────────────────────
-// Trapezoid path segments with a linear gradient perpendicular to the shaft.
-// Produces flat light bands with genuine dark negative space between shafts —
-// unlike radial gradients which bleed in all directions and destroy gaps.
+// ─── shaft drawing ────────────────────────────────────────────────────────────
+// Main visible shafts use heavily overlapping soft stamps instead of trapezoid
+// cards. This keeps the direction/negative space but removes ladder seams.
 
-function drawRibbon(ctx, sx, sy, angle, len, halfWFn, colorFn, baseAlpha, densityFn) {
-  const SEGS = 24;
-  const cosA = Math.cos(angle), sinA = Math.sin(angle);
-  const pc = -sinA, ps = cosA; // perpendicular direction
-  for (let s = 0; s < SEGS; s++) {
-    // Slight overlap between segments to eliminate seam steps
-    const t0 = Math.max(0, (s - 0.1) / SEGS), t1 = Math.min(1, (s + 1.1) / SEGS);
-    const tm = (t0 + t1) * 0.5;
-    // Sample density at both endpoints and average for smooth cross-segment transitions
-    const d = (densityFn(t0) + densityFn(tm) + densityFn(t1)) * 0.333;
-    const peakA = baseAlpha * d * 0.85; // 0.85 compensates for overlap brightness
-    if (peakA < 0.002) continue;
-    const hw0 = halfWFn(t0), hw1 = halfWFn(t1), hw = (hw0 + hw1) * 0.5;
-    if (hw < 0.4) continue;
-    const x0 = sx + cosA * t0 * len, y0 = sy + sinA * t0 * len;
-    const x1 = sx + cosA * t1 * len, y1 = sy + sinA * t1 * len;
-    const mx = (x0 + x1) * 0.5, my = (y0 + y1) * 0.5;
-    const rgb = colorFn(tm);
-    const g = ctx.createLinearGradient(mx + pc*hw, my + ps*hw, mx - pc*hw, my - ps*hw);
-    g.addColorStop(0.00, 'rgba(0,0,0,0)');
-    g.addColorStop(0.22, rgba(rgb, peakA * 0.20));
-    g.addColorStop(0.42, rgba(rgb, peakA * 0.70));
-    g.addColorStop(0.50, rgba(rgb, peakA));
-    g.addColorStop(0.58, rgba(rgb, peakA * 0.70));
-    g.addColorStop(0.78, rgba(rgb, peakA * 0.20));
-    g.addColorStop(1.00, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.moveTo(x0 + pc*hw0, y0 + ps*hw0);
-    ctx.lineTo(x0 - pc*hw0, y0 - ps*hw0);
-    ctx.lineTo(x1 - pc*hw1, y1 - ps*hw1);
-    ctx.lineTo(x1 + pc*hw1, y1 + ps*hw1);
-    ctx.closePath();
-    ctx.fill();
-  }
-}
-
-// Kept for source bloom fan and ridge segments where radial looks better
 function drawSoftBeamSegment(c, sx, sy, angle, t0, t1, len, width, rgb, alpha, stretchMul = 0.78, core = 0.42) {
   const tm = (t0 + t1) * 0.5;
   const secLen = (t1 - t0) * len;
@@ -172,6 +133,30 @@ function drawSoftBeamSegment(c, sx, sy, angle, t0, t1, len, width, rgb, alpha, s
   c.arc(0, 0, width, 0, Math.PI * 2);
   c.fill();
   c.restore();
+}
+
+function drawContinuousShaft(ctx, sx, sy, angle, len, halfWFn, colorFn, baseAlpha, densityFn, options = {}) {
+  const samples = options.samples ?? 16;
+  const overlap = options.overlap ?? 1.85;
+  const stretchMul = options.stretchMul ?? 1.05;
+  const core = options.core ?? 0.42;
+  const alphaMul = options.alphaMul ?? 0.52;
+  const densityRadius = options.densityRadius ?? (0.52 / samples);
+
+  for (let s = 0; s < samples; s++) {
+    const tm = (s + 0.5) / samples;
+    const span = overlap / samples;
+    const t0 = clamp(tm - span * 0.5);
+    const t1 = clamp(tm + span * 0.5);
+    const d0 = densityFn(clamp(tm - densityRadius));
+    const d1 = densityFn(tm);
+    const d2 = densityFn(clamp(tm + densityRadius));
+    const densitySmooth = Math.max(0, d0 * 0.25 + d1 * 0.50 + d2 * 0.25);
+    const alpha = baseAlpha * densitySmooth * alphaMul;
+    const width = halfWFn(tm);
+    if (alpha < 0.002 || width < 0.4) continue;
+    drawSoftBeamSegment(ctx, sx, sy, angle, t0, t1, len, width, colorFn(tm), alpha, stretchMul, core);
+  }
 }
 
 // ─── particles ────────────────────────────────────────────────────────────────
@@ -283,10 +268,11 @@ export function createRaysEffect() {
 
       // ── derived values ──────────────────────────────────────────────────────
       const baseDir    = (direction * Math.PI) / 180;
-      const sourceFlow = atmo.motionMul * motionScale;
-      const flutterX   = (valueNoise(phase * 0.52, 2.1, 151) - 0.5) * W * 0.015 * sourceFlow;
-      const flutterY   = (valueNoise(phase * 0.47, 8.8, 157) - 0.5) * H * 0.013 * sourceFlow;
-      const dirFlutter = (valueNoise(phase * 0.36, 4.5, 163) - 0.5) * 0.030 * sourceFlow;
+      const sourceFlow = atmo.motionMul * motionScale * (0.70 + animSpeed * 0.85);
+      const sourceTime = totalTime * (0.12 + animSpeed * 0.28);
+      const flutterX   = (valueNoise(sourceTime * 0.52, 2.1, 151) - 0.5) * W * 0.018 * sourceFlow;
+      const flutterY   = (valueNoise(sourceTime * 0.47, 8.8, 157) - 0.5) * H * 0.016 * sourceFlow;
+      const dirFlutter = (valueNoise(sourceTime * 0.36, 4.5, 163) - 0.5) * 0.045 * sourceFlow;
       const sx         = W * (sourceX / 100) + flutterX;
       const sy         = H * (sourceY / 100) + flutterY;
       const dir        = baseDir + dirFlutter;
@@ -328,6 +314,9 @@ export function createRaysEffect() {
       // Propagating occlusion wave — travels source→tip over 5–10 s
       const waveRate  = (0.3 + (driftSpeed / 100) * 1.2) * atmo.waveSpeed * motionScale * (0.5 + animSpeed * 1.5);
       const wavePhase = totalTime * waveRate;
+      const structurePhase = totalTime * (0.10 + animSpeed * 0.26) * (0.45 + motionScale * 0.95);
+      const structureAmp   = motionScale * (0.48 + animSpeed * 0.75);
+      const widthMotionAmp = clamp(breathing / 100) * motionScale * (0.06 + animSpeed * 0.07);
 
       // Atmospheric 2D current — coherent lateral flow field
       const currentStr = atmo.particleFlow * motionScale * 0.6;
@@ -339,14 +328,15 @@ export function createRaysEffect() {
       const clusterAngles = Array.from({ length: clusterCount }, (_, k) => {
         const evenSlot  = k / clusterCount - 0.5 + 0.5 / clusterCount;
         const pertSlot  = evenSlot + (hash(k, k * 5.31, 99) - 0.5) * 0.30;
-        const drift     = (fbm(k * 1.7 + phase * 0.12, k * 2.3, 77, 2) - 0.5) * halfSpread * 0.30 * motionScale;
+        const drift     = (fbm(k * 1.7 + structurePhase * 1.25, k * 2.3, 77, 2) - 0.5) * halfSpread * 0.48 * structureAmp;
         return dir + pertSlot * halfSpread * 2.0 * 0.80 + drift;
       });
       const shaftAngles = Array.from({ length: shaftCount }, (_, si) => {
         const seed      = shaftSeeds[si % 32];
         const cIdx      = si % clusterCount;
         const withinOff = (seed.clusterBias - 0.5) * halfSpread * 0.38;
-        return clusterAngles[cIdx] + withinOff;
+        const independentDrift = (fbm(si * 0.91, structurePhase * 1.55 + seed.phase, 181, 2) - 0.5) * halfSpread * 0.18 * structureAmp;
+        return clusterAngles[cIdx] + withinOff + independentDrift;
       });
 
       // ────────────────────────────────────────────────────────────────────────
@@ -475,9 +465,9 @@ export function createRaysEffect() {
       }
 
       // ────────────────────────────────────────────────────────────────────────
-      // LAYER 3: RIBBON AREA BANDS
-      // Flat trapezoid shafts via drawRibbon — genuine dark gaps between families.
-      // Each family = one wide band + one narrower core ribbon.
+      // LAYER 3: CONTINUOUS AREA BANDS
+      // Overlapping soft shaft stamps keep the broad layered read without card seams.
+      // Each family = one wide band + one narrower core shaft.
       // Density uses propagating wave: fbm(tm + wavePhase) so light patches travel.
       // ────────────────────────────────────────────────────────────────────────
       {
@@ -488,7 +478,8 @@ export function createRaysEffect() {
           const seed  = areaSeeds[li % areaSeeds.length];
           const slot  = familyCount === 1 ? 0 : (li / (familyCount - 1) - 0.5);
           const angleOffset = (slot + seed.slotJitter * 0.14) * halfSpread * 1.66;
-          const layerAngle  = dir + angleOffset;
+          const familyDrift = (fbm(li * 0.78 + seed.phase, structurePhase * 1.18, 191, 2) - 0.5) * halfSpread * 0.20 * structureAmp;
+          const layerAngle  = dir + angleOffset + familyDrift;
           const layerLen    = maxLen * seed.lengthMul * (0.96 + soft * 0.14);
 
           const angDev  = Math.abs(Math.atan2(Math.sin(layerAngle - dir), Math.cos(layerAngle - dir)));
@@ -507,9 +498,12 @@ export function createRaysEffect() {
           const baseAlphaBand = globalMod * dens * hazeStr * seed.intensity * centerWeight * angEnv * 0.30;
           const baseAlphaCore = globalMod * dens * seed.intensity * centerWeight * angEnv * opa * 0.22;
 
-          // halfWFn: starts at 0 (source convergence), rises fast, gentle taper at tip
-          const bandHalfW = t => bandHW * smoothstep(t * 10) * (1 - t * 0.18);
-          const coreHalfW = t => coreHW * smoothstep(t * 10) * (1 - t * 0.22);
+          const widthBreath = 1 + Math.sin(totalTime * (0.34 + seed.breath * 0.08) + seed.phase + li * 0.71) * widthMotionAmp * 1.9;
+
+          // Width obeys the optical rule: shafts widen with distance; alpha, not width,
+          // handles the far fade so tips never form hard caps.
+          const bandHalfW = t => bandHW * widthBreath * smoothstep(t * 9) * (0.48 + Math.pow(t, 0.72) * 0.95);
+          const coreHalfW = t => coreHW * widthBreath * smoothstep(t * 9) * (0.52 + Math.pow(t, 0.76) * 0.82);
 
           // densityFn: dramatic falloff × near-source boost × propagating wave × occlusion
           const densityFn = tm => {
@@ -519,21 +513,35 @@ export function createRaysEffect() {
             const waveV    = li * 0.43 + seed.sideBias * 0.42;
             const smokeN   = fbm(waveU, waveV, seed.phase + 71, 4);
             const occN     = fbm(tm * nScale * 3.0 - wavePhase * 0.6, li * 0.82, seed.phase + 79, 2);
-            const laneCut  = lerp(1, smoothstep(clamp((occN - 0.22) / 0.64)), occStr * 0.72);
-            const densN    = lerp(1, lerp(0.26, 1.14, smokeN), noiseStr * 0.92);
+            const laneCut  = lerp(1, smoothstep(clamp((occN - 0.22) / 0.64)), occStr * 0.58);
+            const densN    = lerp(1, lerp(0.52, 1.12, smokeN), noiseStr * 0.82);
             const breathV  = 1 + Math.sin(phase * seed.breath + seed.phase + li * 0.9) * breathAmp * 3.2;
             return longFall * nearBoost * laneCut * densN * breathV;
           };
 
           const colorFn = tm => mixRgb(layerRgb, hazeRgb, clamp((tm - 0.55) * 2.0) * blendFrac * 0.3);
 
-          drawRibbon(actx, sx, sy, layerAngle, layerLen, bandHalfW, colorFn, baseAlphaBand, densityFn);
-          drawRibbon(actx, sx, sy, layerAngle, layerLen, coreHalfW, () => coreRgb, baseAlphaCore, densityFn);
+          drawContinuousShaft(actx, sx, sy, layerAngle, layerLen, bandHalfW, colorFn, baseAlphaBand, densityFn, {
+            samples: 18,
+            overlap: 2.45,
+            stretchMul: 1.24,
+            core: 0.56,
+            alphaMul: 0.42,
+            densityRadius: 0.040,
+          });
+          drawContinuousShaft(actx, sx, sy, layerAngle, layerLen, coreHalfW, () => coreRgb, baseAlphaCore, densityFn, {
+            samples: 18,
+            overlap: 2.18,
+            stretchMul: 1.30,
+            core: 0.40,
+            alphaMul: 0.36,
+            densityRadius: 0.034,
+          });
         }
       }
 
       // ────────────────────────────────────────────────────────────────────────
-      // LAYER 4: STREAK SPINES (ribbon)
+      // LAYER 4: STREAK SPINES
       // Narrow bright centerlines — stronger shafts get spines.
       // ────────────────────────────────────────────────────────────────────────
       {
@@ -553,7 +561,8 @@ export function createRaysEffect() {
 
           const baseAlpha = globalMod * dens * seed.intensity * angEnv * opa * 0.28;
 
-          const halfWFn = t => spineHW * smoothstep(t * 10) * (1 - t * 0.20);
+          const spineBreath = 1 + Math.sin(totalTime * (0.46 + seed.breath * 0.05) + seed.phase + si * 0.37) * widthMotionAmp * 1.45;
+          const halfWFn = t => spineHW * spineBreath * smoothstep(t * 10) * (0.50 + Math.pow(t, 0.72) * 0.92);
 
           const densityFn = tm => {
             const longFall = Math.pow(1 - tm, 0.85 + fall * 3.4) * smoothstep(tm * 9);
@@ -561,7 +570,7 @@ export function createRaysEffect() {
             const densN    = fbm(waveU, si * 0.70, seed.phase, 3);
             const occN     = fbm(tm * nScale * 3.4 + wavePhase * 0.5, si * 1.22, seed.phase + 17, 2);
             const occMask  = lerp(1, smoothstep(clamp((occN - 0.24) / 0.66)), occStr);
-            return longFall * occMask * lerp(1, lerp(0.42, 1, densN), noiseStr);
+            return longFall * occMask * lerp(1, lerp(0.55, 1, densN), noiseStr * 0.86);
           };
 
           const colorFn = tm => {
@@ -569,7 +578,14 @@ export function createRaysEffect() {
             return mixRgb(mixRgb(glowRgb, rayRgb, clamp(tm * 4.0 + (1 - blendFrac))), hazeRgb, outerT);
           };
 
-          drawRibbon(sctx, sx, sy, shaftAngle, shaftLen, halfWFn, colorFn, baseAlpha, densityFn);
+          drawContinuousShaft(sctx, sx, sy, shaftAngle, shaftLen, halfWFn, colorFn, baseAlpha, densityFn, {
+            samples: 15,
+            overlap: 2.25,
+            stretchMul: 1.42,
+            core: 0.34,
+            alphaMul: 0.42,
+            densityRadius: 0.035,
+          });
         }
 
         // Edge-scatter atmospheric bleed
