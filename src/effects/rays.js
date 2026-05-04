@@ -46,48 +46,6 @@ function rgba(rgb, a) {
   return `rgba(${Math.round(rgb.r)},${Math.round(rgb.g)},${Math.round(rgb.b)},${clamp(a).toFixed(4)})`;
 }
 
-function shouldUseManualBlur() {
-  if (typeof navigator === 'undefined') return false;
-  const ua = navigator.userAgent || '';
-  return /Safari/i.test(ua) && !/Chrome|Chromium|CriOS|Edg/i.test(ua);
-}
-
-function drawLayer(ctx, source, w, h, blurPx = 0, alpha = 1, manualBlur = false) {
-  ctx.save();
-  ctx.globalAlpha *= alpha;
-
-  if (!manualBlur || blurPx <= 1) {
-    ctx.filter = blurPx > 0 ? `blur(${blurPx}px)` : 'none';
-    ctx.drawImage(source, 0, 0, w, h);
-    ctx.restore();
-    return;
-  }
-
-  // Safari can render canvas filters differently from Chromium. Approximate the
-  // same softening with deterministic multi-tap layer draws so Rays match Safari.
-  ctx.filter = 'none';
-  const radius = Math.min(48, Math.max(1.2, blurPx * 0.48));
-  const taps = blurPx > 18 ? 12 : 8;
-  const rings = blurPx > 18 ? 2 : 1;
-  const baseAlpha = ctx.globalAlpha;
-  const weight = 1 / (1.4 + taps * rings);
-
-  ctx.globalAlpha = baseAlpha * weight * 1.4;
-  ctx.drawImage(source, 0, 0, w, h);
-
-  for (let ring = 1; ring <= rings; ring++) {
-    const r = radius * (ring / rings);
-    const ringAlpha = baseAlpha * weight * (rings === 2 && ring === 1 ? 1.1 : 0.82);
-    for (let i = 0; i < taps; i++) {
-      const a = (i / taps) * Math.PI * 2;
-      ctx.globalAlpha = ringAlpha;
-      ctx.drawImage(source, Math.cos(a) * r, Math.sin(a) * r, w, h);
-    }
-  }
-
-  ctx.restore();
-}
-
 // ─── atmosphere mode presets ──────────────────────────────────────────────────
 
 const ATMO = {
@@ -677,36 +635,53 @@ export function createRaysEffect() {
       // ── composite ──────────────────────────────────────────────────────────
       ctx.save();
       ctx.globalCompositeOperation = 'screen';
-      const manualBlur = shouldUseManualBlur();
 
       // 1. Volume haze
       const volBlur = 22 + soft * 24;
-      drawLayer(ctx, vol.canvas, W, H, volBlur, 1, manualBlur);
+      ctx.filter = `blur(${volBlur}px)`;
+      ctx.drawImage(vol.canvas, 0, 0, W, H);
 
       // 2. Shaft halos (heavy blur — saturated column glow)
       const haloBlur = 30 + soft * 18 + strkSoft * 8;
-      drawLayer(ctx, halo.canvas, W, H, haloBlur, atmo.haloStr * 0.40, manualBlur);
+      ctx.filter = `blur(${haloBlur}px)`;
+      ctx.globalAlpha = atmo.haloStr * 0.40;
+      ctx.drawImage(halo.canvas, 0, 0, W, H);
+      ctx.globalAlpha = 1;
 
       // 3. Area ribbons — sharp pass
       const areaBlur = 4 + strkSoft * 8 + soft * 2;
-      drawLayer(ctx, area.canvas, W, H, areaBlur, 0.92, manualBlur);
+      ctx.filter = `blur(${areaBlur}px)`;
+      ctx.globalAlpha = 0.92;
+      ctx.drawImage(area.canvas, 0, 0, W, H);
+      ctx.globalAlpha = 1;
 
       // 4. Area ribbons — soft secondary pass
-      drawLayer(ctx, area.canvas, W, H, areaBlur * 2.8 + 10, 0.14, manualBlur);
+      ctx.filter = `blur(${areaBlur * 2.8 + 10}px)`;
+      ctx.globalAlpha = 0.14;
+      ctx.drawImage(area.canvas, 0, 0, W, H);
+      ctx.globalAlpha = 1;
 
       // 5. Streak spines — controlled crispness
       const strkBlur = 3 + strkSoft * 14;
-      drawLayer(ctx, strk.canvas, W, H, strkBlur, 1, manualBlur);
+      ctx.filter = `blur(${strkBlur}px)`;
+      ctx.drawImage(strk.canvas, 0, 0, W, H);
 
       // 6. Streak halo
-      drawLayer(ctx, strk.canvas, W, H, strkBlur * 2.8 + 8, 0.32, manualBlur);
+      ctx.filter = `blur(${strkBlur * 2.8 + 8}px)`;
+      ctx.globalAlpha = 0.32;
+      ctx.drawImage(strk.canvas, 0, 0, W, H);
+      ctx.globalAlpha = 1;
 
       // 7. Ridge cores
       const rdgBlur = 2 + soft * 6;
-      drawLayer(ctx, rdg.canvas, W, H, rdgBlur, 1, manualBlur);
+      ctx.filter = `blur(${rdgBlur}px)`;
+      ctx.drawImage(rdg.canvas, 0, 0, W, H);
 
       // 8. Ridge aureole
-      drawLayer(ctx, rdg.canvas, W, H, rdgBlur * 3.5 + 6, 0.38, manualBlur);
+      ctx.filter = `blur(${rdgBlur * 3.5 + 6}px)`;
+      ctx.globalAlpha = 0.38;
+      ctx.drawImage(rdg.canvas, 0, 0, W, H);
+      ctx.globalAlpha = 1;
 
       ctx.filter = 'none';
 
