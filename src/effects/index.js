@@ -432,19 +432,19 @@ export const EFFECTS = [
     factory: createRaysEffect,
     defaults: {
       // LIGHT SOURCE
-      sourceX:        50,   sourceY:        15,
-      direction:      92,   spreadAngle:    50,
-      beamLength:     90,   beamWidth:      68,
-      sourceGlow:     82,
+      sourceX:        6,    sourceY:        0,
+      direction:      34,   spreadAngle:    38,
+      beamLength:     104,  beamWidth:      56,
+      sourceGlow:     94,
       // VOLUME
-      intensity:      76,   softness:       70,
-      density:        80,   falloff:        78,
-      atmosphericHaze:80,   edgeFeather:    88,
+      intensity:      86,   softness:       78,
+      density:        82,   falloff:        86,
+      atmosphericHaze:82,   edgeFeather:    92,
       // STREAKS
-      rayCount:       11,   streakSoftness: 58,
-      occlusionGaps:  56,   noiseAmount:    72,
-      noiseScale:     54,   dustAmount:     58,
-      driftSpeed:     18,
+      rayCount:       11,   streakSoftness: 42,
+      occlusionGaps:  62,   noiseAmount:    72,
+      noiseScale:     52,   dustAmount:     70,
+      driftSpeed:     30,
       // ATMOSPHERE
       atmosphereMode: 'dusty',
       // COLOR (direct 3-color system)
@@ -453,9 +453,9 @@ export const EFFECTS = [
       glowColor:      '#ffffff',
       colorBlend:     52,
       // ANIMATION
-      motionAmount:   50,   drift:          30,
-      flickerAmount:  8,    breathing:      18,
-      turbulenceSpeed:22,
+      motionAmount:   60,   drift:          42,
+      flickerAmount:  7,    breathing:      26,
+      turbulenceSpeed:28,
     },
     params: [
       // ── LIGHT SOURCE ──

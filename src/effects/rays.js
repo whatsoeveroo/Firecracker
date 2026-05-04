@@ -94,6 +94,19 @@ function makeShaftSeed(i) {
   };
 }
 
+function makeAreaSeed(i) {
+  return {
+    slotJitter: hash(i, i * 4.11, 101) - 0.5,
+    widthMul:  0.74 + hash(i, i * 8.23, 103) * 0.92,
+    lengthMul: 0.70 + hash(i, i * 5.37, 107) * 0.44,
+    intensity: 0.38 + hash(i, i * 9.71, 109) * 0.78,
+    phase:     hash(i, i * 2.61, 113) * Math.PI * 2,
+    sideBias:  hash(i, i * 6.89, 127) - 0.5,
+    edgeSkew:  (hash(i, i * 3.31, 131) - 0.5) * 0.9,
+    breath:    0.55 + hash(i, i * 7.77, 137) * 0.75,
+  };
+}
+
 // ─── elongated section drawing ────────────────────────────────────────────────
 // Draw one shaft section as an ellipse stretched along the beam direction.
 // This eliminates circular blob artifacts — the section's shape is naturally
@@ -130,6 +143,31 @@ function drawSection(c, sx, sy, angle, t0, t1, len, width, rgb, alpha) {
   c.restore();
 }
 
+function drawSoftBeamSegment(c, sx, sy, angle, t0, t1, len, width, rgb, alpha, stretchMul = 0.78, core = 0.42) {
+  const tm = (t0 + t1) * 0.5;
+  const secLen = (t1 - t0) * len;
+  if (alpha < 0.002 || width < 0.5 || secLen < 0.5) return;
+
+  const cx = sx + Math.cos(angle) * tm * len;
+  const cy = sy + Math.sin(angle) * tm * len;
+  const stretch = Math.min(18, Math.max(1.2, (secLen * stretchMul) / Math.max(width, 0.5)));
+
+  c.save();
+  c.translate(cx, cy);
+  c.rotate(angle);
+  c.scale(stretch, 1);
+
+  const g = c.createRadialGradient(0, 0, 0, 0, 0, width);
+  g.addColorStop(0, rgba(rgb, alpha));
+  g.addColorStop(core, rgba(rgb, alpha * 0.38));
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = g;
+  c.beginPath();
+  c.arc(0, 0, width, 0, Math.PI * 2);
+  c.fill();
+  c.restore();
+}
+
 // ─── dust particle ────────────────────────────────────────────────────────────
 
 function spawnDust(sx, sy, maxLen, dir, spread) {
@@ -152,12 +190,13 @@ export function createRaysEffect() {
   let phase = 0;
   let dust  = [];
   const shaftSeeds  = Array.from({ length: 32 }, (_, i) => makeShaftSeed(i));
-  const volumeLayer = {}, streakLayer = {}, ridgeLayer = {};
+  const areaSeeds   = Array.from({ length: 16 }, (_, i) => makeAreaSeed(i));
+  const volumeLayer = {}, areaLayer = {}, streakLayer = {}, ridgeLayer = {};
 
   return {
     reset() {
       phase = 0; dust = [];
-      [volumeLayer, streakLayer, ridgeLayer].forEach(l => {
+      [volumeLayer, areaLayer, streakLayer, ridgeLayer].forEach(l => {
         if (l.ctx) l.ctx.clearRect(0, 0, l.canvas.width, l.canvas.height);
       });
     },
@@ -197,17 +236,24 @@ export function createRaysEffect() {
       const W = canvas.width, H = canvas.height;
       const SCALE   = 0.48;  // slightly above 0.5 for a bit more quality
       const vol   = ensureLayer(volumeLayer, W * SCALE, H * SCALE);
+      const area  = ensureLayer(areaLayer,   W * SCALE, H * SCALE);
       const strk  = ensureLayer(streakLayer, W * SCALE, H * SCALE);
       const rdg   = ensureLayer(ridgeLayer,  W * SCALE, H * SCALE);
-      const vctx  = vol.ctx, sctx = strk.ctx, rctx = rdg.ctx;
+      const vctx  = vol.ctx, actx = area.ctx, sctx = strk.ctx, rctx = rdg.ctx;
       vctx.scale(SCALE, SCALE);
+      actx.scale(SCALE, SCALE);
       sctx.scale(SCALE, SCALE);
       rctx.scale(SCALE, SCALE);
 
       // ── derived values ──────────────────────────────────────────────────────
-      const sx         = W * (sourceX / 100);
-      const sy         = H * (sourceY / 100);
-      const dir        = (direction * Math.PI) / 180;
+      const baseDir    = (direction * Math.PI) / 180;
+      const sourceFlow = atmo.motionMul * motionScale;
+      const flutterX   = (valueNoise(phase * 0.52, 2.1, 151) - 0.5) * W * 0.010 * sourceFlow;
+      const flutterY   = (valueNoise(phase * 0.47, 8.8, 157) - 0.5) * H * 0.008 * sourceFlow;
+      const dirFlutter = (valueNoise(phase * 0.36, 4.5, 163) - 0.5) * 0.030 * sourceFlow;
+      const sx         = W * (sourceX / 100) + flutterX;
+      const sy         = H * (sourceY / 100) + flutterY;
+      const dir        = baseDir + dirFlutter;
       const halfSpread = (spreadAngle / 2 * Math.PI) / 180;
       const maxLen     = Math.hypot(W, H) * (beamLength / 100) * 0.88;
       const fieldW     = Math.min(W, H) * (beamWidth / 100) * 0.82;
@@ -355,7 +401,98 @@ export function createRaysEffect() {
       }
 
       // ────────────────────────────────────────────────────────────────────────
-      // LAYER 2: SHAFT STREAKS
+      // LAYER 2: BROAD AREA SHAFT FAMILIES
+      // Straight luminous planes inside the broad volume. These add the
+      // stock-footage "layered god ray" read without replacing the v4 streaks.
+      // Motion lives in density and source shimmer, not path bending.
+      // ────────────────────────────────────────────────────────────────────────
+      {
+        actx.globalCompositeOperation = 'lighter';
+
+        const familyCount = Math.max(4, Math.min(10, Math.round(4 + shaftCount * 0.25)));
+        const AREA_SECS = 9;
+        const waveSpeed = (0.14 + (driftSpeed / 100) * 0.68) * atmo.driftMul * motionScale;
+        const lateralFlow = driftStr * 0.56;
+        const nearMerge = 0.20 + soft * 0.10;
+
+        for (let li = 0; li < familyCount; li++) {
+          const seed = areaSeeds[li % areaSeeds.length];
+          const slot = familyCount === 1 ? 0 : (li / (familyCount - 1) - 0.5);
+          const angleOffset = (slot + seed.slotJitter * 0.14) * halfSpread * 1.66;
+          const layerAngle = dir + angleOffset;
+          const layerLen = maxLen * seed.lengthMul * (0.96 + soft * 0.14);
+          const sourceW = fieldW * (0.018 + soft * 0.010) * seed.widthMul;
+          const farW = fieldW * (0.20 + soft * 0.12) * seed.widthMul;
+          const centerWeight = 1 - Math.min(0.66, Math.abs(slot) * 0.26);
+          const layerRgb = mixRgb(rayRgb, hazeRgb, blendFrac * (0.18 + Math.abs(slot) * 0.34));
+          const haloRgb = mixRgb(hazeRgb, rayRgb, blendFrac * 0.28);
+
+          const angDev = Math.abs(Math.atan2(Math.sin(layerAngle - dir), Math.cos(layerAngle - dir)));
+          const edgeN = fbm(li * 0.46 + phase * 0.010, angleOffset * 3.0, seed.phase + 61, 2);
+          const effH = halfSpread * (0.92 + feather * 0.42 + edgeN * noiseStr * 0.20);
+          const angEnv = smoothstep(clamp(1 - angDev / Math.max(0.001, effH)));
+          if (angEnv < 0.015) continue;
+
+          for (let s = 0; s < AREA_SECS; s++) {
+            const t0 = Math.max(0, (s - 0.38) / AREA_SECS);
+            const t1 = Math.min(1, (s + 1.38) / AREA_SECS);
+            const tm = (t0 + t1) * 0.5;
+            const sourceMerge = 1 - smoothstep(tm / Math.max(0.001, nearMerge));
+            const startFade = smoothstep(tm / Math.max(0.001, nearMerge * 0.46));
+            const farFade = Math.pow(1 - tm, 0.88 + fall * 3.25);
+            const lengthFade = startFade * farFade;
+
+            const flowU = tm * nScale * 1.62 + phase * waveSpeed + seed.sideBias * 0.42;
+            const flowV = slot * nScale * 2.45 + phase * lateralFlow + li * 0.43;
+            const smokeN = fbm(flowU, flowV, seed.phase + 71, 4);
+            const cloudN = fbm(tm * nScale * 0.78 + phase * waveSpeed * 0.34, slot * 1.45 + phase * 0.024, seed.phase + 75, 2);
+            const waveN = fbm(tm * nScale * 3.0 - phase * waveSpeed * 0.82, li * 0.82 + phase * 0.036, seed.phase + 79, 2);
+            const laneCut = lerp(1, smoothstep(clamp((waveN - 0.22) / 0.64)), occStr * 0.72);
+            const familyGap = 1 - occStr * 0.24 * smoothstep(Math.abs(slot) * 1.8);
+            const densityMod = lerp(1, lerp(0.26, 1.14, smokeN * 0.70 + cloudN * 0.30), noiseStr * 0.92);
+            const segmentBreath = 1 + Math.sin(phase * seed.breath + seed.phase + li * 0.9) * breathAmp * 3.2;
+
+            const alpha = globalMod
+              * dens
+              * hazeStr
+              * seed.intensity
+              * centerWeight
+              * angEnv
+              * lengthFade
+              * laneCut
+              * familyGap
+              * densityMod
+              * segmentBreath
+              * 0.135;
+            if (alpha < 0.003) continue;
+
+            const widthGrowth = Math.pow(tm, 0.72);
+            const beamW = (sourceW + farW * widthGrowth) * (1.00 + smokeN * 0.10 + waveN * 0.06);
+            const haloW = beamW * (1.95 + soft * 0.28);
+            const coreW = beamW * (0.46 + strkSoft * 0.20);
+            const hotW = beamW * (0.20 + strkSoft * 0.12);
+
+            drawSoftBeamSegment(actx, sx, sy, layerAngle, t0, t1, layerLen, haloW, haloRgb, alpha * 0.20, 0.96, 0.50);
+            drawSoftBeamSegment(actx, sx, sy, layerAngle, t0, t1, layerLen, coreW, layerRgb, alpha, 1.05, 0.38);
+
+            if (seed.intensity > 0.70 && tm < 0.82) {
+              const haloColor = mixRgb(glowRgb, rayRgb, 0.34 + blendFrac * 0.18);
+              const strongFall = Math.pow(1 - tm, 1.34 + fall * 1.8);
+              drawSoftBeamSegment(actx, sx, sy, layerAngle, t0, t1, layerLen * 0.92, hotW, haloColor, alpha * strongFall * 0.72, 1.15, 0.32);
+              drawSoftBeamSegment(actx, sx, sy, layerAngle, t0, t1, layerLen * 0.92, hotW * 3.1, rayRgb, alpha * strongFall * 0.13, 1.0, 0.50);
+            }
+
+            if (tm < 0.30) {
+              const nearRgb = mixRgb(glowRgb, rayRgb, 0.42 + blendFrac * 0.20);
+              const nearW = beamW * (1.35 + sourceMerge * 0.75);
+              drawSoftBeamSegment(actx, sx, sy, layerAngle, t0, t1, layerLen * 0.72, nearW, nearRgb, alpha * sourceMerge * 0.48, 1.0, 0.46);
+            }
+          }
+        }
+      }
+
+      // ────────────────────────────────────────────────────────────────────────
+      // LAYER 3: SHAFT STREAKS
       // Each shaft: 4 elongated sections (not 20 circular blobs).
       // Each section is a stretched ellipse aligned with the shaft direction.
       // Result: clean directional streaks with no repeated-circle artifacts.
@@ -425,7 +562,7 @@ export function createRaysEffect() {
       }
 
       // ────────────────────────────────────────────────────────────────────────
-      // LAYER 3: BRIGHT RIDGE CORES
+      // LAYER 4: BRIGHT RIDGE CORES
       // Narrow bright centerlines for the top-intensity shafts.
       // Gives the "streak has a bright spine" quality without hard lines.
       // Only the dominant shafts get ridges — others remain soft.
@@ -477,6 +614,17 @@ export function createRaysEffect() {
       const volBlur = 22 + soft * 24;
       ctx.filter = `blur(${volBlur}px)`;
       ctx.drawImage(vol.canvas, 0, 0, W, H);
+
+      // Area families: broad straight light planes that sit between haze and crisp streaks
+      const areaBlur = 7 + strkSoft * 12 + soft * 3;
+      ctx.filter = `blur(${areaBlur}px)`;
+      ctx.globalAlpha = 0.92;
+      ctx.drawImage(area.canvas, 0, 0, W, H);
+
+      ctx.filter = `blur(${areaBlur * 2.6 + 10}px)`;
+      ctx.globalAlpha = 0.26;
+      ctx.drawImage(area.canvas, 0, 0, W, H);
+      ctx.globalAlpha = 1;
 
       // Streak body: controlled by streakSoftness — crisp or dreamy
       const strkBlur  = 5 + strkSoft * 18;
@@ -538,6 +686,20 @@ export function createRaysEffect() {
         ctx.fillStyle = g2;
         ctx.beginPath(); ctx.arc(0, 0, r2, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
+
+        // Short directional fan: connects the source bloom into the layered volume
+        const fanLen = maxLen * (0.26 + glowStr * 0.12);
+        const fanW = fieldW * (0.44 + soft * 0.18);
+        for (let fs = 0; fs < 4; fs++) {
+          const t0 = fs / 5.2;
+          const t1 = (fs + 1.55) / 5.2;
+          const tm = (t0 + t1) * 0.5;
+          const fanA = glowStr * opa * dens * Math.pow(1 - tm, 1.55) * (0.18 + hazeStr * 0.05);
+          if (fanA < 0.006) continue;
+          const warmRgb = mixRgb(glowRgb, rayRgb, 0.38 + blendFrac * 0.22);
+          const fw = fanW * Math.pow(Math.max(tm, 0.03), 0.42) * (1.35 - tm * 0.28);
+          drawSoftBeamSegment(ctx, sx, sy, dir, t0, t1, fanLen, fw, warmRgb, fanA, 1.08, 0.52);
+        }
       }
 
       // ── dust / particulate ─────────────────────────────────────────────────
@@ -557,18 +719,35 @@ export function createRaysEffect() {
           if (p.life <= 0) { dust[i] = spawnDust(sx, sy, maxLen, dir, spread2); continue; }
 
           const dx = p.x - sx, dy = p.y - sy;
-          const dist = Math.hypot(dx, dy);
-          const ang  = Math.atan2(dy, dx);
-          const angD = Math.abs(Math.atan2(Math.sin(ang - dir), Math.cos(ang - dir)));
-          const inside  = smoothstep(1 - clamp(angD / (halfSpread * 0.92 + 0.14)));
-          const distF   = 1 - clamp(dist / maxLen);
-          const alpha   = p.life * inside * distF * (dustAmount / 100) * opa * 0.38;
+          const u = dx * cosDirX + dy * sinDirY;
+          const v = Math.abs(dx * perpX + dy * perpY);
+          if (u <= 0) { dust[i] = spawnDust(sx, sy, maxLen, dir, spread2); continue; }
+          const uNorm = clamp(u / maxLen);
+          const widthAtParticle = fieldW * (0.045 + Math.pow(uNorm, 0.78) * 0.58);
+          const broadLight = smoothstep(1 - clamp(v / Math.max(1, widthAtParticle)));
+          const distF = Math.pow(1 - uNorm, 0.70 + fall * 1.15);
+
+          let streakLight = 0;
+          for (let si = 0; si < Math.min(shaftCount, 18); si++) {
+            const a = shaftAngles[si];
+            const ax = Math.cos(a), ay = Math.sin(a);
+            const nx = -ay, ny = ax;
+            const su = dx * ax + dy * ay;
+            if (su <= 0) continue;
+            const sv = Math.abs(dx * nx + dy * ny);
+            const seed = shaftSeeds[si % 32];
+            const shaftW = fieldW * seed.widthMul * (0.020 + Math.pow(clamp(su / maxLen), 0.72) * 0.20);
+            streakLight = Math.max(streakLight, smoothstep(1 - clamp(sv / Math.max(1, shaftW))) * seed.intensity);
+          }
+
+          const localLight = broadLight * (0.42 + streakLight * 0.80);
+          const alpha = p.life * localLight * distF * (dustAmount / 100) * opa * 0.42;
           if (alpha < 0.006) continue;
 
-          const dr = p.size * (1.5 + soft * 1.2);
+          const dr = p.size * (1.35 + soft * 1.25) * (atmosphereMode === 'underwater' ? 1.35 : 1);
           const dg = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, dr);
           // Particle color: mix ray/haze color based on blend
-          const pRgb = mixRgb(rayRgb, hazeRgb, blendFrac * 0.55);
+          const pRgb = mixRgb(mixRgb(rayRgb, glowRgb, streakLight * 0.22), hazeRgb, blendFrac * 0.55);
           dg.addColorStop(0,    rgba(pRgb, alpha));
           dg.addColorStop(0.45, rgba(pRgb, alpha * 0.28));
           dg.addColorStop(1,    'rgba(0,0,0,0)');
