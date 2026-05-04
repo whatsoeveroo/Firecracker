@@ -316,36 +316,44 @@ export const BUILT_IN_PRESETS = {
 
   rays: [
     {
+      // Heavenly warmth: strong source bloom, multiple soft shaft families, airy low-density haze
       name: 'Divine Light',
-      params: { sourceX: 76, sourceY: 4, direction: 128, spreadAngle: 56, sourceSize: 42, beamLength: 104, beamWidth: 70, sourceIntensity: 88, sourceGlow: 94, rayCount: 12, intensity: 82, softness: 82, density: 76, atmosphericHaze: 74, falloff: 82, fieldDepth: 72, scatterStrength: 82, beamSeparation: 68, beamClustering: 42, edgeDissolve: 72, noiseAmount: 38, noiseScale: 38, occlusionGaps: 24, edgeFeather: 84, coreHaloBalance: 56, dustAmount: 42, driftSpeed: 16, hazeDrift: 20, flickerAmount: 8, breathing: 22, turbulenceSpeed: 14, colorTemp: 78, tintColor: '#fff0c4', colorVariation: 14, highlightWarmth: 70, bloomWarmth: 58 },
+      params: { sourceX: 50, sourceY: 2, direction: 92, spreadAngle: 64, beamLength: 110, beamWidth: 84, sourceGlow: 98, rayCount: 15, intensity: 90, softness: 96, density: 68, falloff: 90, atmosphericHaze: 88, edgeFeather: 98, noiseAmount: 44, noiseScale: 40, occlusionGaps: 12, dustAmount: 32, driftSpeed: 6, atmosphereMode: 'misty', rayColor: '#fff0c8', hazeColor: '#c09040', glowColor: '#ffffff', colorBlend: 65, streakSoftness: 74, motionAmount: 22, flickerAmount: 3, drift: 10, breathing: 28, turbulenceSpeed: 8 },
     },
     {
+      // Off-axis directional shaft entering a dark room — readable shaft breakup, heavy visible dust
       name: 'Window Sunbeam',
-      params: { sourceX: 90, sourceY: 12, direction: 140, spreadAngle: 34, sourceSize: 28, beamLength: 96, beamWidth: 58, sourceIntensity: 82, sourceGlow: 78, rayCount: 8, intensity: 82, softness: 72, density: 82, atmosphericHaze: 70, falloff: 74, fieldDepth: 72, scatterStrength: 78, beamSeparation: 78, beamClustering: 34, edgeDissolve: 56, noiseAmount: 56, noiseScale: 48, occlusionGaps: 62, edgeFeather: 78, coreHaloBalance: 62, dustAmount: 84, driftSpeed: 24, hazeDrift: 28, flickerAmount: 9, breathing: 12, turbulenceSpeed: 24, colorTemp: 70, tintColor: '#ffd58c', colorVariation: 20, highlightWarmth: 58, bloomWarmth: 46 },
+      params: { sourceX: 92, sourceY: 6, direction: 150, spreadAngle: 20, beamLength: 98, beamWidth: 34, sourceGlow: 74, rayCount: 8, intensity: 86, softness: 70, density: 84, falloff: 66, atmosphericHaze: 74, edgeFeather: 74, noiseAmount: 76, noiseScale: 66, occlusionGaps: 72, dustAmount: 92, driftSpeed: 20, atmosphereMode: 'dusty', rayColor: '#ffb840', hazeColor: '#a06820', glowColor: '#fff0c8', colorBlend: 58, streakSoftness: 38, motionAmount: 40, flickerAmount: 8, drift: 30, breathing: 8, turbulenceSpeed: 14 },
     },
     {
+      // Leaf-filtered forest light: high irregularity, clustered patchy gaps, organic green-gold tint
       name: 'Forest Morning',
-      params: { sourceX: 70, sourceY: 0, direction: 118, spreadAngle: 72, sourceSize: 34, beamLength: 100, beamWidth: 68, sourceIntensity: 76, sourceGlow: 72, rayCount: 14, intensity: 74, softness: 80, density: 84, atmosphericHaze: 76, falloff: 78, fieldDepth: 76, scatterStrength: 76, beamSeparation: 66, beamClustering: 58, edgeDissolve: 82, noiseAmount: 78, noiseScale: 58, occlusionGaps: 84, edgeFeather: 84, coreHaloBalance: 54, dustAmount: 56, driftSpeed: 18, hazeDrift: 28, flickerAmount: 8, breathing: 18, turbulenceSpeed: 20, colorTemp: 62, tintColor: '#d8ff9b', colorVariation: 34, highlightWarmth: 42, bloomWarmth: 36 },
+      params: { sourceX: 66, sourceY: 0, direction: 108, spreadAngle: 82, beamLength: 100, beamWidth: 72, sourceGlow: 52, rayCount: 18, intensity: 68, softness: 90, density: 84, falloff: 70, atmosphericHaze: 82, edgeFeather: 94, noiseAmount: 94, noiseScale: 72, occlusionGaps: 90, dustAmount: 48, driftSpeed: 16, atmosphereMode: 'misty', rayColor: '#c8e060', hazeColor: '#60a030', glowColor: '#eeffc0', colorBlend: 76, streakSoftness: 68, motionAmount: 32, flickerAmount: 6, drift: 26, breathing: 24, turbulenceSpeed: 16 },
     },
     {
+      // Theatrical beam from high corner — tight clustered shafts, smoke-revealed volume, high flicker
       name: 'Stage Spotlight',
-      params: { sourceX: 18, sourceY: 4, direction: 62, spreadAngle: 24, sourceSize: 18, beamLength: 108, beamWidth: 42, sourceIntensity: 88, sourceGlow: 72, rayCount: 4, intensity: 88, softness: 58, density: 76, atmosphericHaze: 74, falloff: 66, fieldDepth: 62, scatterStrength: 84, beamSeparation: 86, beamClustering: 24, edgeDissolve: 42, noiseAmount: 34, noiseScale: 34, occlusionGaps: 18, edgeFeather: 70, coreHaloBalance: 72, dustAmount: 50, driftSpeed: 16, hazeDrift: 18, flickerAmount: 16, breathing: 10, turbulenceSpeed: 24, colorTemp: 38, tintColor: '#e6f1ff', colorVariation: 12, highlightWarmth: 12, bloomWarmth: 12 },
+      params: { sourceX: 14, sourceY: 2, direction: 56, spreadAngle: 16, beamLength: 114, beamWidth: 28, sourceGlow: 86, rayCount: 5, intensity: 92, softness: 64, density: 76, falloff: 60, atmosphericHaze: 86, edgeFeather: 68, noiseAmount: 54, noiseScale: 38, occlusionGaps: 28, dustAmount: 68, driftSpeed: 16, atmosphereMode: 'smoky', rayColor: '#c8e0ff', hazeColor: '#7090b0', glowColor: '#ffffff', colorBlend: 35, streakSoftness: 24, motionAmount: 22, flickerAmount: 22, drift: 7, breathing: 5, turbulenceSpeed: 24 },
     },
     {
+      // Dense suspended medium, slow wide undulation, heavy particulate, deep cyan volume
       name: 'Underwater Shaft',
-      params: { sourceX: 48, sourceY: 0, direction: 92, spreadAngle: 54, sourceSize: 38, beamLength: 112, beamWidth: 78, sourceIntensity: 66, sourceGlow: 58, rayCount: 10, intensity: 64, softness: 88, density: 72, atmosphericHaze: 76, falloff: 58, fieldDepth: 88, scatterStrength: 70, beamSeparation: 54, beamClustering: 64, edgeDissolve: 76, noiseAmount: 68, noiseScale: 76, occlusionGaps: 30, edgeFeather: 92, coreHaloBalance: 44, dustAmount: 30, driftSpeed: 42, hazeDrift: 58, flickerAmount: 12, breathing: 34, turbulenceSpeed: 52, colorTemp: 10, tintColor: '#63d8ff', colorVariation: 42, highlightWarmth: 0, bloomWarmth: 0 },
+      params: { sourceX: 46, sourceY: 0, direction: 90, spreadAngle: 50, beamLength: 120, beamWidth: 82, sourceGlow: 44, rayCount: 13, intensity: 52, softness: 98, density: 96, falloff: 48, atmosphericHaze: 98, edgeFeather: 98, noiseAmount: 80, noiseScale: 86, occlusionGaps: 38, dustAmount: 86, driftSpeed: 42, atmosphereMode: 'underwater', rayColor: '#30c0f0', hazeColor: '#0870b8', glowColor: '#b0f0ff', colorBlend: 82, streakSoftness: 88, motionAmount: 72, flickerAmount: 2, drift: 58, breathing: 46, turbulenceSpeed: 52 },
     },
     {
+      // Thick dirty air, shafts barely legible through haze, subdued palette, moodier atmosphere
       name: 'Smoky Room',
-      params: { sourceX: 84, sourceY: 24, direction: 150, spreadAngle: 44, sourceSize: 30, beamLength: 86, beamWidth: 86, sourceIntensity: 58, sourceGlow: 52, rayCount: 7, intensity: 54, softness: 90, density: 96, atmosphericHaze: 92, falloff: 72, fieldDepth: 82, scatterStrength: 64, beamSeparation: 48, beamClustering: 54, edgeDissolve: 88, noiseAmount: 66, noiseScale: 40, occlusionGaps: 42, edgeFeather: 92, coreHaloBalance: 38, dustAmount: 72, driftSpeed: 22, hazeDrift: 30, flickerAmount: 7, breathing: 22, turbulenceSpeed: 24, colorTemp: 42, tintColor: '#d8dde2', colorVariation: 10, highlightWarmth: 8, bloomWarmth: 8 },
+      params: { sourceX: 88, sourceY: 20, direction: 157, spreadAngle: 46, beamLength: 88, beamWidth: 90, sourceGlow: 40, rayCount: 10, intensity: 44, softness: 98, density: 98, falloff: 76, atmosphericHaze: 98, edgeFeather: 98, noiseAmount: 86, noiseScale: 46, occlusionGaps: 56, dustAmount: 88, driftSpeed: 8, atmosphereMode: 'smoky', rayColor: '#c8b890', hazeColor: '#706048', glowColor: '#ffe8b0', colorBlend: 80, streakSoftness: 78, motionAmount: 24, flickerAmount: 3, drift: 16, breathing: 12, turbulenceSpeed: 10 },
     },
     {
+      // Grand majestic spread: large-scale dark cloud gaps, broad shaft families, celestial scale
       name: 'Cloud Break',
-      params: { sourceX: 52, sourceY: 0, direction: 105, spreadAngle: 96, sourceSize: 58, beamLength: 108, beamWidth: 96, sourceIntensity: 82, sourceGlow: 90, rayCount: 15, intensity: 78, softness: 92, density: 78, atmosphericHaze: 82, falloff: 88, fieldDepth: 86, scatterStrength: 76, beamSeparation: 60, beamClustering: 70, edgeDissolve: 86, noiseAmount: 80, noiseScale: 32, occlusionGaps: 76, edgeFeather: 92, coreHaloBalance: 42, dustAmount: 28, driftSpeed: 18, hazeDrift: 24, flickerAmount: 10, breathing: 28, turbulenceSpeed: 20, colorTemp: 74, tintColor: '#fff2bd', colorVariation: 22, highlightWarmth: 62, bloomWarmth: 58 },
+      params: { sourceX: 52, sourceY: 0, direction: 92, spreadAngle: 104, beamLength: 114, beamWidth: 100, sourceGlow: 94, rayCount: 20, intensity: 82, softness: 96, density: 76, falloff: 92, atmosphericHaze: 92, edgeFeather: 98, noiseAmount: 90, noiseScale: 24, occlusionGaps: 86, dustAmount: 18, driftSpeed: 8, atmosphereMode: 'clean', rayColor: '#ffe8b8', hazeColor: '#c09848', glowColor: '#ffffff', colorBlend: 55, streakSoftness: 58, motionAmount: 18, flickerAmount: 5, drift: 14, breathing: 30, turbulenceSpeed: 10 },
     },
     {
+      // Cold narrow beam with gritty fog — tight shaft cluster, strong occlusion breakup, high flicker
       name: 'Horror Flashlight',
-      params: { sourceX: 4, sourceY: 62, direction: 350, spreadAngle: 18, sourceSize: 14, beamLength: 94, beamWidth: 30, sourceIntensity: 78, sourceGlow: 38, rayCount: 3, intensity: 76, softness: 48, density: 72, atmosphericHaze: 72, falloff: 54, fieldDepth: 58, scatterStrength: 78, beamSeparation: 88, beamClustering: 18, edgeDissolve: 36, noiseAmount: 86, noiseScale: 70, occlusionGaps: 72, edgeFeather: 58, coreHaloBalance: 78, dustAmount: 78, driftSpeed: 28, hazeDrift: 22, flickerAmount: 30, breathing: 8, turbulenceSpeed: 38, colorTemp: 28, tintColor: '#d7e4ff', colorVariation: 8, highlightWarmth: 4, bloomWarmth: 4 },
+      params: { sourceX: 2, sourceY: 56, direction: 346, spreadAngle: 14, beamLength: 96, beamWidth: 22, sourceGlow: 30, rayCount: 4, intensity: 80, softness: 50, density: 74, falloff: 56, atmosphericHaze: 76, edgeFeather: 54, noiseAmount: 96, noiseScale: 82, occlusionGaps: 86, dustAmount: 82, driftSpeed: 22, atmosphereMode: 'foggy', rayColor: '#a8b8cc', hazeColor: '#4c6070', glowColor: '#c0d0e0', colorBlend: 40, streakSoftness: 30, motionAmount: 45, flickerAmount: 36, drift: 12, breathing: 4, turbulenceSpeed: 42 },
     },
   ],
 
