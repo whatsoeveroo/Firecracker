@@ -61,6 +61,20 @@ const ATMO = {
   misty:      { haze:1.02, dust:0.55, soft:1.18, noise:0.62, occ:0.42, motion:0.72, flow:0.62, width:1.10, halo:1.05, cool:0.02 },
 };
 
+// ─── micro particle controller ───────────────────────────────────────────────
+// Per-atmosphere config: count, size (px base), speed, rise (neg=up, pos=down),
+// spread (lateral fieldW multiplier), tint (0=rayRgb, 1=glowRgb), opacity.
+
+const MICRO = {
+  //             count  size   speed   rise    spread  tint   opacity
+  clean:      {  count: 22,  size: 0.55, speed: 0.12, rise: -0.014, spread: 1.05, tint: 0.70, opacity: 0.52 },
+  dusty:      {  count: 58,  size: 0.90, speed: 0.22, rise:  0.028, spread: 0.92, tint: 0.25, opacity: 0.60 },
+  foggy:      {  count: 82,  size: 0.38, speed: 0.06, rise:  0.006, spread: 1.40, tint: 0.82, opacity: 0.34 },
+  smoky:      {  count: 50,  size: 0.78, speed: 0.30, rise: -0.042, spread: 0.88, tint: 0.16, opacity: 0.50 },
+  underwater: {  count: 44,  size: 1.10, speed: 0.18, rise: -0.065, spread: 0.82, tint: 0.90, opacity: 0.65 },
+  misty:      {  count: 76,  size: 0.36, speed: 0.08, rise:  0.010, spread: 1.28, tint: 0.78, opacity: 0.38 },
+};
+
 // ─── offscreen ────────────────────────────────────────────────────────────────
 
 function ensureCanvas(layer, w, h) {
@@ -270,6 +284,56 @@ function drawShaftFamily(ctx, sx, sy, angle, len, baseW, rgb, glowRgb, alpha, se
     drawShaftPlane(ctx, sx, sy, angle, length * 0.70, width0 * 0.42, width1 * 0.12, glowRgb, shaftAlpha * 0.070, {
       startT: 0.035, endT: 0.78, nearFade: 0.07, farFade: 0.32, fallPower: 1.75, slices: 1, blur: 1.5 + soft * 2.4,
     });
+  }
+}
+
+function drawMicroParticles(ctx, sx, sy, dir, W, H, maxLen, fieldW, rayRgb, glowRgb, alpha, seeds, time, atmo, mode) {
+  const mc = MICRO[mode] || MICRO.dusty;
+  if (alpha < 0.003) return;
+  const ax = Math.cos(dir), ay = Math.sin(dir);
+
+  for (let i = 0; i < mc.count; i++) {
+    const p = seeds[(i * 17 + 7) % seeds.length];
+
+    // Along-beam drift — unique speed per particle
+    const u = fract(p.dist * 1.07 + time * mc.speed * (0.35 + p.speed * 0.65) * atmo.flow);
+
+    // Perpendicular: base slot + rise/fall that loops via fract so particles recycle smoothly
+    const lateralPhase = fract(p.type + time * mc.rise * (0.40 + p.speed * 0.60));
+    const side = (lateralPhase - 0.5) * mc.spread * 2.1
+               + Math.sin(time * (0.10 + p.speed * 0.08) + p.phase * 3.5) * 0.05;
+
+    const x = sx + ax * maxLen * u + (-ay) * side * fieldW;
+    const y = sy + ay * maxLen * u +   ax  * side * fieldW;
+    if (x < -4 || x > W + 4 || y < -4 || y > H + 4) continue;
+
+    const distFade = Math.pow(1 - u, 0.42);
+    const sideFade = smoothstep(1 - Math.abs(side) / (mc.spread * 1.15));
+    if (distFade * sideFade < 0.018) continue;
+
+    const r = mc.size * (0.35 + p.size * 1.30);
+    const a = alpha * distFade * sideFade * mc.opacity * (0.22 + p.size * 0.62);
+    if (a < 0.007 || r < 0.18) continue;
+
+    const rgb = mixRgb(rayRgb, glowRgb, mc.tint * (0.45 + p.size * 0.55));
+
+    if (r >= 1.4) {
+      // Soft radial glow for larger micro motes
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r * 2.6);
+      g.addColorStop(0,    rgba(rgb, a));
+      g.addColorStop(0.38, rgba(rgb, a * 0.42));
+      g.addColorStop(1,    'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, r * 2.6, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // Sharp pinpoint for truly micro particles — no gradient overhead
+      ctx.fillStyle = rgba(rgb, a);
+      ctx.beginPath();
+      ctx.arc(x, y, Math.max(0.5, r), 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 }
 
@@ -630,6 +694,23 @@ export function createRaysEffect() {
         lightAlpha * (dustAmount / 100) * atmo.dust * 0.42,
         particleSeeds,
         flowTime * 1.24,
+        atmo,
+        atmosphereMode,
+      );
+
+      // Micro particle layer — atmosphere-specific tiny floating specks
+      drawMicroParticles(
+        ctx,
+        sx, sy,
+        dir,
+        W, H,
+        maxLen,
+        fieldW,
+        rayRgb,
+        glowRgb,
+        lightAlpha * (dustAmount / 100) * 0.52,
+        particleSeeds,
+        flowTime * 0.86,
         atmo,
         atmosphereMode,
       );
