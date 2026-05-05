@@ -61,6 +61,22 @@ const ATMO = {
   misty:      { haze:1.02, dust:0.55, soft:1.18, noise:0.62, occ:0.42, motion:0.72, flow:0.62, width:1.10, halo:1.05, cool:0.02 },
 };
 
+// ─── offscreen ────────────────────────────────────────────────────────────────
+
+function ensureCanvas(layer, w, h) {
+  if (!layer.canvas) {
+    layer.canvas = document.createElement('canvas');
+    layer.ctx = layer.canvas.getContext('2d');
+  }
+  if (layer.canvas.width !== w || layer.canvas.height !== h) {
+    layer.canvas.width = w;
+    layer.canvas.height = h;
+  }
+  layer.ctx.setTransform(1, 0, 0, 1, 0, 0);
+  layer.ctx.clearRect(0, 0, w, h);
+  return layer.ctx;
+}
+
 // ─── seeds ───────────────────────────────────────────────────────────────────
 
 function makeShaftSeed(i) {
@@ -105,51 +121,96 @@ function ellipseGlow(ctx, x, y, rx, ry, angle, rgb, alpha, stops = [0.22, 0.07])
   ctx.restore();
 }
 
-function taperedPath(ctx, sx, sy, angle, len, startW, endW, startT = 0, endT = 1) {
-  const ax = Math.cos(angle), ay = Math.sin(angle);
-  const px = -ay, py = ax;
-  const x0 = sx + ax * len * startT;
-  const y0 = sy + ay * len * startT;
-  const x1 = sx + ax * len * endT;
-  const y1 = sy + ay * len * endT;
-  const w0 = startW + (endW - startW) * startT;
-  const w1 = startW + (endW - startW) * endT;
-  ctx.beginPath();
-  ctx.moveTo(x0 + px * w0, y0 + py * w0);
-  ctx.lineTo(x0 - px * w0, y0 - py * w0);
-  ctx.lineTo(x1 - px * w1, y1 - py * w1);
-  ctx.lineTo(x1 + px * w1, y1 + py * w1);
-  ctx.closePath();
-}
-
 function drawShaftPlane(ctx, sx, sy, angle, len, width0, width1, rgb, alpha, options = {}) {
   if (alpha < 0.002 || len < 4 || width1 < 0.4) return;
   const ax = Math.cos(angle), ay = Math.sin(angle);
+  const px = -ay, py = ax;
   const startT = options.startT ?? 0.015;
   const endT = options.endT ?? 0.96;
   const farFade = options.farFade ?? 0.10;
   const nearFade = options.nearFade ?? 0.10;
+  const slices = options.slices ?? 1;
+  const edgePower = options.edgePower ?? 1.18;
+  const blur = options.blur ?? 0;
 
   ctx.save();
   ctx.globalCompositeOperation = options.blend || 'screen';
-  taperedPath(ctx, sx, sy, angle, len, width0, width1, startT, endT);
-  ctx.clip();
+  if (blur > 0) {
+    ctx.shadowColor = rgba(rgb, alpha * 0.55);
+    ctx.shadowBlur = blur;
+  }
 
-  const g = ctx.createLinearGradient(
-    sx + ax * len * Math.max(0, startT - 0.02),
-    sy + ay * len * Math.max(0, startT - 0.02),
-    sx + ax * len * endT,
-    sy + ay * len * endT,
-  );
-  g.addColorStop(0.00, rgba(rgb, alpha * nearFade));
-  g.addColorStop(0.08, rgba(rgb, alpha));
-  g.addColorStop(0.30, rgba(rgb, alpha * 0.72));
-  g.addColorStop(0.62, rgba(rgb, alpha * 0.24));
-  g.addColorStop(0.86, rgba(rgb, alpha * farFade));
-  g.addColorStop(1.00, 'rgba(0,0,0,0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  for (let s = 0; s < slices; s++) {
+    const raw0 = s / slices;
+    const raw1 = (s + 1) / slices;
+    const overlap = slices === 1 ? 0 : 0.075;
+    const t0 = lerp(startT, endT, Math.max(0, raw0 - overlap));
+    const t1 = lerp(startT, endT, Math.min(1, raw1 + overlap));
+    const tm = (t0 + t1) * 0.5;
+    const near = smoothstep((tm - startT) / Math.max(0.001, nearFade));
+    const far = smoothstep((endT - tm) / Math.max(0.001, farFade));
+    const distanceFade = Math.pow(Math.max(0, 1 - tm), options.fallPower ?? 1.25);
+    const sectionAlpha = alpha * near * far * (0.28 + distanceFade * 0.92);
+    if (sectionAlpha < 0.0015) continue;
+
+    const w0 = width0 + (width1 - width0) * t0;
+    const w1 = width0 + (width1 - width0) * t1;
+    const wm = width0 + (width1 - width0) * tm;
+    const mx = sx + ax * len * tm;
+    const my = sy + ay * len * tm;
+    const g = ctx.createLinearGradient(mx + px * wm, my + py * wm, mx - px * wm, my - py * wm);
+    g.addColorStop(0.00, 'rgba(0,0,0,0)');
+    g.addColorStop(0.18, rgba(rgb, sectionAlpha * 0.12));
+    g.addColorStop(0.34, rgba(rgb, sectionAlpha * 0.50));
+    g.addColorStop(0.50, rgba(rgb, sectionAlpha));
+    g.addColorStop(0.66, rgba(rgb, sectionAlpha * 0.50));
+    g.addColorStop(0.82, rgba(rgb, sectionAlpha * 0.12));
+    g.addColorStop(1.00, 'rgba(0,0,0,0)');
+
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(sx + ax * len * t0 + px * w0, sy + ay * len * t0 + py * w0);
+    ctx.lineTo(sx + ax * len * t0 - px * w0, sy + ay * len * t0 - py * w0);
+    ctx.lineTo(sx + ax * len * t1 - px * w1, sy + ay * len * t1 - py * w1);
+    ctx.lineTo(sx + ax * len * t1 + px * w1, sy + ay * len * t1 + py * w1);
+    ctx.closePath();
+    ctx.globalAlpha = Math.pow(1 - Math.abs(tm - 0.46) * 0.18, edgePower);
+    ctx.fill();
+  }
   ctx.restore();
+}
+
+function drawAtmosphericWisps(ctx, sx, sy, dir, maxLen, fieldW, rayRgb, hazeRgb, alpha, seeds, time, atmo, mode) {
+  if (alpha < 0.002) return;
+  const ax = Math.cos(dir), ay = Math.sin(dir);
+  const px = -ay, py = ax;
+  const count = mode === 'underwater' ? 12 : mode === 'smoky' ? 14 : 8;
+  for (let i = 0; i < count; i++) {
+    const seed = seeds[(i * 7 + 9) % seeds.length];
+    const drift = time * (0.018 + seed.speed * 0.035) * atmo.flow;
+    const u = fract(seed.dist * 0.92 + drift);
+    const sideWave = fbm(seed.phase + time * 0.025, i * 0.37, 173, 3) - 0.5;
+    const side = seed.side * 0.85 + sideWave * (mode === 'underwater' ? 0.42 : 0.26);
+    const width = fieldW * (0.22 + Math.pow(u, 0.82) * 1.05);
+    const x = sx + ax * maxLen * u + px * side * width;
+    const y = sy + ay * maxLen * u + py * side * width;
+    const fade = Math.pow(1 - u, 1.15) * smoothstep(1 - Math.abs(side) * 0.82);
+    const local = fbm(u * 2.2 + time * 0.04, side * 2.0, 181 + i, 3);
+    const a = alpha * fade * lerp(0.45, 1.0, local) * (mode === 'clean' ? 0.35 : 1);
+    if (a < 0.003) continue;
+    const rgb = mixRgb(hazeRgb, rayRgb, 0.28 + local * 0.26);
+    ellipseGlow(
+      ctx,
+      x,
+      y,
+      maxLen * (0.035 + seed.size * 0.050) * (mode === 'underwater' ? 1.45 : 1),
+      fieldW * (0.035 + seed.size * 0.080) * (mode === 'smoky' ? 1.35 : 1),
+      dir + (seed.side * 0.18),
+      rgb,
+      a * 0.085,
+      [0.34, 0.02],
+    );
+  }
 }
 
 function drawShaftFamily(ctx, sx, sy, angle, len, baseW, rgb, glowRgb, alpha, seed, params) {
@@ -159,7 +220,7 @@ function drawShaftFamily(ctx, sx, sy, angle, len, baseW, rgb, glowRgb, alpha, se
   } = params;
 
   const breath = 1 + Math.sin(motionPhase * (0.8 + seed.intensity * 0.4) + seed.phase) * params.breathAmp;
-  const length = len * seed.length * (0.92 + soft * 0.12);
+  const length = len * (0.94 + seed.length * 0.08) * (0.96 + soft * 0.06);
   const width0 = Math.max(0.4, baseW * 0.10 * sourceMerge);
   const width1 = baseW * seed.width * fieldScale * (0.72 + soft * 0.85) * breath;
   const densityWave = fbm(seed.phase + wavePhase * 0.42, seed.bias * 2.0, 71, 3);
@@ -167,17 +228,19 @@ function drawShaftFamily(ctx, sx, sy, angle, len, baseW, rgb, glowRgb, alpha, se
   const density = lerp(1, lerp(0.58, 1.16, densityWave), noiseStr);
   const occlusion = lerp(1, smoothstep((occWave - 0.18) / 0.66), occStr * 0.42);
   const shaftAlpha = alpha * seed.intensity * density * occlusion;
+  const haloBoost = params.haloBoost ?? 1;
 
-  // Wide halo, visible sheet, and narrow core. All are single continuous planes.
-  drawShaftPlane(ctx, sx, sy, angle, length, width0 * 2.4, width1 * 2.15, rgb, shaftAlpha * 0.17, {
-    startT: 0.02, endT: 0.98, nearFade: 0.24, farFade: 0.04,
+  // Wide halo, visible sheet, and narrow core. All follow the same straight
+  // light direction, but width gradients keep the sides from reading as objects.
+  drawShaftPlane(ctx, sx, sy, angle, length, width0 * 4.0, width1 * 3.45, rgb, shaftAlpha * 0.20 * haloBoost, {
+    startT: 0.01, endT: 0.99, nearFade: 0.18, farFade: 0.24, fallPower: 0.86, slices: 1, blur: 12 + soft * 22,
   });
-  drawShaftPlane(ctx, sx, sy, angle, length, width0 * 1.3, width1 * 0.92, rgb, shaftAlpha * 0.30, {
-    startT: 0.04, endT: 0.94 - fall * 0.04, nearFade: 0.38, farFade: 0.02,
+  drawShaftPlane(ctx, sx, sy, angle, length, width0 * 2.10, width1 * 1.42, rgb, shaftAlpha * 0.22, {
+    startT: 0.025, endT: 0.985, nearFade: 0.11, farFade: 0.24 + fall * 0.08, fallPower: 1.18 + fall * 0.25, slices: 1, blur: 5 + soft * 10,
   });
   if (seed.intensity > 0.62) {
-    drawShaftPlane(ctx, sx, sy, angle, length * 0.86, width0 * 0.62, width1 * 0.25, glowRgb, shaftAlpha * 0.24, {
-      startT: 0.07, endT: 0.78 - fall * 0.05, nearFade: 0.55, farFade: 0,
+    drawShaftPlane(ctx, sx, sy, angle, length * 0.78, width0 * 0.75, width1 * 0.23, glowRgb, shaftAlpha * 0.095, {
+      startT: 0.055, endT: 0.94, nearFade: 0.08, farFade: 0.30, fallPower: 1.45, slices: 1, blur: 3 + soft * 5,
     });
   }
 }
@@ -219,6 +282,7 @@ function drawAtmosphericDust(ctx, sx, sy, dir, maxLen, fieldW, rayRgb, glowRgb, 
 export function createRaysEffect() {
   let phase = 0;
   let totalTime = 0;
+  const shaftLayer = {};
   const shaftSeeds = Array.from({ length: 32 }, (_, i) => makeShaftSeed(i));
   const particleSeeds = Array.from({ length: 220 }, (_, i) => makeParticleSeed(i));
 
@@ -290,6 +354,7 @@ export function createRaysEffect() {
       const nScale = 0.7 + (noiseScale / 100) * 2.4;
       const globalPulse = 1 + (valueNoise(phase * 1.8, 1.4, 3) - 0.5) * clamp(flickerAmount / 100) * 0.10;
       const lightAlpha = opa * dens * globalPulse;
+      const shaftCtx = ensureCanvas(shaftLayer, W, H);
 
       ctx.save();
       ctx.globalCompositeOperation = 'screen';
@@ -306,7 +371,7 @@ export function createRaysEffect() {
           fieldW * (1.05 + soft * 0.68),
           dir,
           broadRgb,
-          baseHaze * 0.16,
+          baseHaze * 0.24,
           [0.30, 0.025],
         );
         ellipseGlow(
@@ -317,14 +382,14 @@ export function createRaysEffect() {
           fieldW * (0.42 + soft * 0.25),
           dir,
           mixRgb(glowRgb, rayRgb, 0.50),
-          baseHaze * 0.18,
+          baseHaze * 0.25,
           [0.28, 0.02],
         );
       }
 
       // Straight widening shaft families. Layout moves subtly, but centerlines stay straight.
       const shaftCount = Math.max(2, Math.round(rayCount));
-      const familyCount = Math.max(3, Math.min(16, shaftCount));
+      const familyCount = Math.max(3, Math.min(11, Math.round(shaftCount * 0.72)));
       const spreadUsable = halfSpread * (0.62 + feather * 0.30);
       for (let i = 0; i < familyCount; i++) {
         const seed = shaftSeeds[i % shaftSeeds.length];
@@ -338,9 +403,9 @@ export function createRaysEffect() {
         const colorMix = clamp(blendFrac * (0.18 + Math.abs(slot) * 0.35));
         const shaftRgb = mixRgb(rayRgb, hazeRgb, colorMix);
         const coreRgb = mixRgb(glowRgb, rayRgb, 0.42 + blendFrac * 0.18);
-        const baseW = fieldW * (0.030 + soft * 0.034 + strkSoft * 0.020) * atmo.width;
-        const alpha = lightAlpha * haze * edgeFade * (0.24 + strkSoft * 0.18);
-        drawShaftFamily(ctx, sx, sy, angle, maxLen, baseW, shaftRgb, coreRgb, alpha, seed, {
+        const baseW = fieldW * (0.040 + soft * 0.050 + strkSoft * 0.026) * atmo.width;
+        const alpha = lightAlpha * haze * edgeFade * (0.25 + strkSoft * 0.16);
+        drawShaftFamily(shaftCtx, sx, sy, angle, maxLen, baseW, shaftRgb, coreRgb, alpha, seed, {
           fieldScale: 1,
           soft,
           fall,
@@ -350,6 +415,7 @@ export function createRaysEffect() {
           motionPhase,
           nScale,
           breathAmp,
+          haloBoost: atmo.halo,
           sourceMerge: 0.08 + soft * 0.06,
         });
       }
@@ -361,12 +427,51 @@ export function createRaysEffect() {
         const slot = sheetCount === 1 ? 0 : i / (sheetCount - 1) - 0.5;
         const angle = dir + slot * halfSpread * 1.18;
         const sheetRgb = mixRgb(rayRgb, hazeRgb, 0.35 + blendFrac * 0.28);
-        const sheetAlpha = lightAlpha * haze * seed.intensity * 0.11;
-        const w = fieldW * (0.10 + soft * 0.11) * atmo.width * seed.width;
-        drawShaftPlane(ctx, sx, sy, angle, maxLen * seed.length, w * 0.08, w * 2.2, sheetRgb, sheetAlpha, {
-          startT: 0.04, endT: 0.94, nearFade: 0.20, farFade: 0.01,
+        const sheetAlpha = lightAlpha * haze * seed.intensity * 0.14 * atmo.halo;
+        const w = fieldW * (0.16 + soft * 0.15) * atmo.width * seed.width;
+        drawShaftPlane(shaftCtx, sx, sy, angle, maxLen * (0.96 + seed.length * 0.06), w * 0.08, w * 2.2, sheetRgb, sheetAlpha, {
+          startT: 0.035, endT: 0.99, nearFade: 0.10, farFade: 0.32, fallPower: 0.95, slices: 1, blur: 14 + soft * 20,
         });
       }
+
+      // A single optical falloff mask across the entire shaft layer prevents
+      // individual planes from showing clipped endings.
+      shaftCtx.save();
+      shaftCtx.globalCompositeOperation = 'destination-in';
+      const mask = shaftCtx.createLinearGradient(
+        sx - ax * maxLen * 0.02,
+        sy - ay * maxLen * 0.02,
+        sx + ax * maxLen * 0.98,
+        sy + ay * maxLen * 0.98,
+      );
+      mask.addColorStop(0.00, 'rgba(255,255,255,0)');
+      mask.addColorStop(0.06, 'rgba(255,255,255,0.92)');
+      mask.addColorStop(0.22, 'rgba(255,255,255,1)');
+      mask.addColorStop(0.52, 'rgba(255,255,255,0.78)');
+      mask.addColorStop(0.74, 'rgba(255,255,255,0.28)');
+      mask.addColorStop(0.90, 'rgba(255,255,255,0.04)');
+      mask.addColorStop(1.00, 'rgba(255,255,255,0)');
+      shaftCtx.fillStyle = mask;
+      shaftCtx.fillRect(0, 0, W, H);
+      shaftCtx.restore();
+
+      ctx.drawImage(shaftLayer.canvas, 0, 0);
+
+      drawAtmosphericWisps(
+        ctx,
+        sx,
+        sy,
+        dir,
+        maxLen,
+        fieldW,
+        rayRgb,
+        hazeRgb,
+        lightAlpha * haze * (0.70 + noiseStr * 0.45),
+        particleSeeds,
+        totalTime * (0.16 + (drift / 100) * 0.55),
+        atmo,
+        atmosphereMode,
+      );
 
       // Dust and particulate. It is deterministic so browsers stay in sync.
       drawAtmosphericDust(
@@ -403,11 +508,11 @@ export function createRaysEffect() {
           ctx,
           sx + ax * baseR * 0.040,
           sy + ay * baseR * 0.040,
-          baseR * (0.16 + glowStr * 0.16),
-          baseR * (0.06 + glowStr * 0.08),
+          baseR * (0.22 + glowStr * 0.20),
+          baseR * (0.07 + glowStr * 0.10),
           dir,
           mixRgb(rayRgb, glowRgb, 0.36),
-          glowStr * 0.24,
+          glowStr * 0.28,
           [0.20, 0.015],
         );
       }

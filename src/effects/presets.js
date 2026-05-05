@@ -318,7 +318,7 @@ export const BUILT_IN_PRESETS = {
     {
       // Heavenly warmth: strong source bloom, multiple soft shaft families, airy low-density haze
       name: 'Divine Light',
-      params: { sourceX: 56, sourceY: 0, direction: 92, spreadAngle: 66, beamLength: 114, beamWidth: 84, sourceGlow: 100, rayCount: 15, intensity: 94, softness: 92, density: 76, falloff: 90, atmosphericHaze: 90, edgeFeather: 98, noiseAmount: 56, noiseScale: 36, occlusionGaps: 34, dustAmount: 46, driftSpeed: 18, atmosphereMode: 'misty', rayColor: '#fff0c8', hazeColor: '#c09040', glowColor: '#ffffff', colorBlend: 68, streakSoftness: 60, motionAmount: 38, flickerAmount: 3, drift: 24, breathing: 32, animationSpeed: 42, turbulenceSpeed: 14 },
+      params: { sourceX: 6, sourceY: 0, direction: 34, spreadAngle: 42, beamLength: 112, beamWidth: 62, sourceGlow: 96, rayCount: 10, intensity: 92, softness: 76, density: 86, falloff: 84, atmosphericHaze: 88, edgeFeather: 90, noiseAmount: 68, noiseScale: 44, occlusionGaps: 48, dustAmount: 62, driftSpeed: 24, atmosphereMode: 'dusty', rayColor: '#ffd27a', hazeColor: '#8a5c24', glowColor: '#fff7dc', colorBlend: 58, streakSoftness: 48, motionAmount: 48, flickerAmount: 4, drift: 34, breathing: 28, animationSpeed: 48, turbulenceSpeed: 18 },
     },
     {
       // Off-axis directional shaft entering a dark room — readable shaft breakup, heavy visible dust
