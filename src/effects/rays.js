@@ -243,10 +243,10 @@ function drawShaftFamily(ctx, sx, sy, angle, len, baseW, rgb, glowRgb, alpha, se
   // light direction, but width gradients keep the sides from reading as objects.
   // Underwater uses much lower blur to preserve distinct shaft edges and gaps.
   const uwBlurScale = underwater ? 0 : 1;
-  drawShaftPlane(ctx, sx, sy, angle, length, width0 * (underwater ? 5.4 : 4.0), width1 * (underwater ? 4.9 : 3.45), rgb, shaftAlpha * (underwater ? 0.34 : 0.20) * haloBoost * bodyMul, {
+  drawShaftPlane(ctx, sx, sy, angle, length, width0 * (underwater ? 5.4 : 4.6), width1 * (underwater ? 4.9 : 4.40), rgb, shaftAlpha * (underwater ? 0.34 : 0.17) * haloBoost * bodyMul, {
     startT: 0.01, endT: 0.99, nearFade: 0.18, farFade: underwater ? 0.28 : 0.24, fallPower: underwater ? 0.62 : 0.86, slices: underwater ? 6 : 1, blur: ((underwater ? 6 : 12) + soft * (underwater ? 8 : 22)) * uwBlurScale,
   });
-  drawShaftPlane(ctx, sx, sy, angle, length, width0 * (underwater ? 3.0 : 2.10), width1 * (underwater ? 2.15 : 1.42), rgb, shaftAlpha * (underwater ? 0.38 : 0.22), {
+  drawShaftPlane(ctx, sx, sy, angle, length, width0 * (underwater ? 3.0 : 2.40), width1 * (underwater ? 2.15 : 1.90), rgb, shaftAlpha * (underwater ? 0.38 : 0.28), {
     startT: 0.025, endT: 0.985, nearFade: 0.11, farFade: (underwater ? 0.28 : 0.24) + fall * 0.08, fallPower: (underwater ? 0.80 : 1.18) + fall * 0.25, slices: underwater ? 8 : 1, blur: ((underwater ? 3 : 5) + soft * (underwater ? 5 : 10)) * uwBlurScale,
   });
   if (seed.intensity > 0.62) {
@@ -414,10 +414,14 @@ export function createRaysEffect() {
         );
       }
 
-      // Ambient fill — warm inter-shaft scatter visible between crisp beams
+      // Ambient fill — strength varies by mode: warm/foggy modes fill gaps with color, dark modes stay dark
+      const ambFillStr = underwater ? 0.14
+        : atmosphereMode === 'clean' ? 0.07
+        : (atmosphereMode === 'foggy' || atmosphereMode === 'misty') ? 0.28
+        : 0.22;
       ellipseGlow(ctx, sx + ax * maxLen * 0.42, sy + ay * maxLen * 0.42,
         maxLen * 0.65, fieldW * 1.35, dir,
-        mixRgb(hazeRgb, rayRgb, blendFrac * 0.20), lightAlpha * haze * 0.18, [0.45, 0.06]);
+        mixRgb(hazeRgb, rayRgb, blendFrac * 0.20), lightAlpha * haze * ambFillStr, [0.45, 0.06]);
 
       // Straight widening shaft families. Layout moves subtly, but centerlines stay straight.
       const shaftCount = Math.max(2, Math.round(rayCount));
@@ -429,7 +433,9 @@ export function createRaysEffect() {
         const slot = even + seed.slot * 0.20;
         // Underwater: more angular drift gives natural fan variation
         const clusterDrift = (fbm(i * 0.41, motionPhase * 0.55 + seed.phase, 117, 2) - 0.5) * halfSpread * (underwater ? 0.20 : 0.12) * motionScale;
-        const angle = dir + slot * spreadUsable * 2 + clusterDrift + globalFanSweep;
+        const shaftDriftFreq = 0.15 + seed.intensity * 0.13;
+        const shaftDrift = Math.sin(totalTime * shaftDriftFreq + seed.phase * 2.1) * halfSpread * 0.08 * motionScale;
+        const angle = dir + slot * spreadUsable * 2 + clusterDrift + globalFanSweep + shaftDrift;
         const edge = Math.abs(slot) * 2;
         const edgeFade = smoothstep(1 - edge * (0.64 + (1 - feather) * 0.26));
         if (edgeFade < 0.015) continue;
@@ -593,10 +599,10 @@ export function createRaysEffect() {
       const glowStr = (sourceGlow / 100) * lightAlpha;
       if (glowStr > 0.004) {
         const baseR = Math.min(W, H);
-        const hotR = baseR * (0.032 + glowStr * 0.052);
+        const hotR = baseR * (0.055 + glowStr * 0.082);
         const hot = ctx.createRadialGradient(sx, sy, 0, sx, sy, hotR);
-        hot.addColorStop(0, rgba(glowRgb, glowStr));
-        hot.addColorStop(0.34, rgba(mixRgb(glowRgb, rayRgb, 0.35), glowStr * 0.66));
+        hot.addColorStop(0, rgba(glowRgb, Math.min(0.92, glowStr * 1.55)));
+        hot.addColorStop(0.22, rgba(mixRgb(glowRgb, rayRgb, 0.35), glowStr * 0.80));
         hot.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = hot;
         ctx.beginPath();
