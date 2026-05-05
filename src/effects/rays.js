@@ -67,12 +67,12 @@ const ATMO = {
 
 const MICRO = {
   //             count  size   speed   rise    spread  tint   opacity
-  clean:      {  count: 22,  size: 0.55, speed: 0.12, rise: -0.014, spread: 1.05, tint: 0.70, opacity: 0.52 },
-  dusty:      {  count: 58,  size: 0.90, speed: 0.22, rise:  0.028, spread: 0.92, tint: 0.25, opacity: 0.60 },
-  foggy:      {  count: 82,  size: 0.38, speed: 0.06, rise:  0.006, spread: 1.40, tint: 0.82, opacity: 0.34 },
-  smoky:      {  count: 50,  size: 0.78, speed: 0.30, rise: -0.042, spread: 0.88, tint: 0.16, opacity: 0.50 },
-  underwater: {  count: 44,  size: 1.10, speed: 0.18, rise: -0.065, spread: 0.82, tint: 0.90, opacity: 0.65 },
-  misty:      {  count: 76,  size: 0.36, speed: 0.08, rise:  0.010, spread: 1.28, tint: 0.78, opacity: 0.38 },
+  clean:      {  count: 22,  size: 2.0,  speed: 0.12, rise: -0.014, spread: 1.05, tint: 0.70, opacity: 0.80 },
+  dusty:      {  count: 58,  size: 3.2,  speed: 0.22, rise:  0.028, spread: 0.92, tint: 0.25, opacity: 0.88 },
+  foggy:      {  count: 82,  size: 1.4,  speed: 0.06, rise:  0.006, spread: 1.40, tint: 0.82, opacity: 0.65 },
+  smoky:      {  count: 50,  size: 2.6,  speed: 0.30, rise: -0.042, spread: 0.88, tint: 0.16, opacity: 0.75 },
+  underwater: {  count: 44,  size: 3.8,  speed: 0.18, rise: -0.065, spread: 0.82, tint: 0.90, opacity: 0.90 },
+  misty:      {  count: 76,  size: 1.2,  speed: 0.08, rise:  0.010, spread: 1.28, tint: 0.78, opacity: 0.60 },
 };
 
 // ─── offscreen ────────────────────────────────────────────────────────────────
@@ -312,26 +312,29 @@ function drawMicroParticles(ctx, sx, sy, dir, W, H, maxLen, fieldW, rayRgb, glow
     if (distFade * sideFade < 0.018) continue;
 
     const r = mc.size * (0.35 + p.size * 1.30);
-    const a = alpha * distFade * sideFade * mc.opacity * (0.22 + p.size * 0.62);
-    if (a < 0.007 || r < 0.18) continue;
+    const a = alpha * distFade * sideFade * mc.opacity * (0.30 + p.size * 0.55);
+    if (a < 0.005 || r < 0.5) continue;
 
     const rgb = mixRgb(rayRgb, glowRgb, mc.tint * (0.45 + p.size * 0.55));
 
-    if (r >= 1.4) {
+    if (r >= 2.0) {
       // Soft radial glow for larger micro motes
-      const g = ctx.createRadialGradient(x, y, 0, x, y, r * 2.6);
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r * 2.2);
       g.addColorStop(0,    rgba(rgb, a));
-      g.addColorStop(0.38, rgba(rgb, a * 0.42));
+      g.addColorStop(0.40, rgba(rgb, a * 0.45));
       g.addColorStop(1,    'rgba(0,0,0,0)');
       ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.arc(x, y, r * 2.6, 0, Math.PI * 2);
+      ctx.arc(x, y, r * 2.2, 0, Math.PI * 2);
       ctx.fill();
     } else {
-      // Sharp pinpoint for truly micro particles — no gradient overhead
-      ctx.fillStyle = rgba(rgb, a);
+      // Compact soft dot for smaller particles
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r * 1.8);
+      g.addColorStop(0, rgba(rgb, a));
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.arc(x, y, Math.max(0.5, r), 0, Math.PI * 2);
+      ctx.arc(x, y, r * 1.8, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -708,7 +711,7 @@ export function createRaysEffect() {
         fieldW,
         rayRgb,
         glowRgb,
-        lightAlpha * (dustAmount / 100) * 0.52,
+        lightAlpha * (dustAmount / 100),
         particleSeeds,
         flowTime * 0.86,
         atmo,
