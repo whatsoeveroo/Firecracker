@@ -191,10 +191,17 @@ function drawAtmosphericWisps(ctx, sx, sy, dir, maxLen, fieldW, rayRgb, hazeRgb,
   const count = mode === 'underwater' ? 12 : mode === 'smoky' ? 14 : 8;
   for (let i = 0; i < count; i++) {
     const seed = seeds[(i * 7 + 9) % seeds.length];
-    const drift = time * (0.018 + seed.speed * 0.035) * atmo.flow;
-    const u = fract(seed.dist * 0.92 + drift);
-    const sideWave = fbm(seed.phase + time * 0.025, i * 0.37, 173, 3) - 0.5;
-    const side = seed.side * 0.85 + sideWave * (mode === 'underwater' ? 0.42 : 0.26);
+    // Per-wisp speed oscillation so some linger while others glide through
+    const speedMul = 0.45 + 0.55 * Math.abs(Math.sin(seed.phase * 1.7 + time * 0.038));
+    const drift = time * (0.015 + seed.speed * 0.032) * atmo.flow * speedMul;
+    const baseU = fract(seed.dist * 0.92 + drift);
+    // Curl: independent FBM fields for along-axis and cross-axis wander
+    const wispCurlA = fbm(baseU * 3.5 + seed.phase,       time * 0.042 + i * 0.53, 173, 3);
+    const wispCurlS = fbm(baseU * 3.1 + seed.phase + 4.2, time * 0.058 + i * 0.39, 179, 3);
+    const u    = clamp(baseU + (wispCurlA - 0.5) * 0.055 * atmo.flow);
+    const sideWander = (wispCurlS - 0.5) * (mode === 'underwater' ? 0.52 : 0.38) * atmo.flow;
+    const side = seed.side * 0.80 + sideWander
+               + Math.sin(baseU * 4.8 + seed.phase) * 0.06;
     const width = fieldW * (0.22 + Math.pow(u, 0.82) * 1.05);
     const x = sx + ax * maxLen * u + px * side * width;
     const y = sy + ay * maxLen * u + py * side * width;
@@ -203,17 +210,16 @@ function drawAtmosphericWisps(ctx, sx, sy, dir, maxLen, fieldW, rayRgb, hazeRgb,
     const a = alpha * fade * lerp(0.45, 1.0, local) * (mode === 'clean' ? 0.35 : 1);
     if (a < 0.003) continue;
     const rgb = mixRgb(hazeRgb, rayRgb, 0.28 + local * 0.26);
-    ellipseGlow(
-      ctx,
-      x,
-      y,
-      maxLen * (0.035 + seed.size * 0.050) * (mode === 'underwater' ? 1.45 : 1),
-      fieldW * (0.035 + seed.size * 0.080) * (mode === 'smoky' ? 1.35 : 1),
-      dir + (seed.side * 0.18),
-      rgb,
-      a * 0.085,
-      [0.34, 0.02],
-    );
+    // Shape variety: ~38% become elongated beam-aligned streaks, rest stay rounded blobs
+    const isStreak = seed.type > 0.62;
+    const rx = isStreak
+      ? maxLen * (0.075 + seed.size * 0.110)
+      : maxLen * (0.035 + seed.size * 0.055) * (mode === 'underwater' ? 1.45 : 1);
+    const ry = isStreak
+      ? fieldW * (0.008 + seed.size * 0.014)
+      : fieldW * (0.035 + seed.size * 0.085) * (mode === 'smoky' ? 1.35 : 1);
+    const wispAngle = isStreak ? dir + seed.side * 0.06 : dir + seed.side * 0.18;
+    ellipseGlow(ctx, x, y, rx, ry, wispAngle, rgb, a * (isStreak ? 0.065 : 0.090), [0.34, 0.02]);
   }
 }
 
@@ -274,27 +280,39 @@ function drawAtmosphericDust(ctx, sx, sy, dir, maxLen, fieldW, rayRgb, glowRgb, 
   const count = Math.min(seeds.length, Math.round(24 + alpha * 120 * atmo.dust));
   for (let i = 0; i < count; i++) {
     const p = seeds[i];
-    const drift = time * (0.010 + p.speed * 0.030) * atmo.flow;
-    const u = fract(p.dist + drift);
-    const side = p.side + (fbm(p.phase + time * 0.05, i * 0.11, 91, 2) - 0.5) * 0.35 * atmo.flow;
+    // Per-particle speed oscillation — each particle breathes fast/slow on its own cycle
+    const speedVar = 0.55 + 0.45 * Math.sin(p.phase * 2.8 + time * (0.06 + p.speed * 0.10));
+    const drift = time * (0.008 + p.speed * 0.028) * atmo.flow * speedVar;
+    const baseU = fract(p.dist + drift);
+    // Curl displacement: two FBM samples give a 2D flow field — particles take curving paths
+    const curlU = fbm(baseU * 4.2 + p.phase,       time * 0.055 + i * 0.44, 91, 3);
+    const curlS = fbm(baseU * 3.8 + p.phase + 5.7, time * 0.072 + i * 0.31, 97, 3);
+    const u    = clamp(baseU + (curlU - 0.5) * 0.06 * atmo.flow);
+    const curlAmt = (0.18 + p.size * 0.24) * atmo.flow;
+    const side = p.side * 0.70 + (curlS - 0.5) * curlAmt
+               + Math.sin(baseU * 6.1 + p.phase) * 0.04;
     const width = fieldW * (0.16 + Math.pow(u, 0.72) * 1.25);
     const x = sx + ax * maxLen * u + px * side * width;
     const y = sy + ay * maxLen * u + py * side * width;
     const distFade = Math.pow(1 - u, 0.7);
-    const lightFade = smoothstep(1 - Math.abs(side) / 0.82);
+    const lightFade = smoothstep(1 - Math.abs(side) / 0.88);
+    // Power-law size distribution: ~70% tiny, ~22% medium, ~8% rare large
+    const sizeClass = fract(p.type * 7.3 + p.phase * 0.159);
     const size = mode === 'underwater'
-      ? 0.8 + p.size * 2.6
-      : p.type > 0.78 ? 2.0 + p.size * 5.0 : 0.6 + p.size * 1.9;
-    const a = alpha * distFade * lightFade * (0.18 + p.size * 0.42);
+      ? (sizeClass > 0.85 ? 3.5 + p.size * 5.5 : sizeClass > 0.55 ? 1.2 + p.size * 2.2 : 0.4 + p.size * 0.9)
+      : (sizeClass > 0.92 ? 5.0 + p.size * 10.0 : sizeClass > 0.72 ? 1.8 + p.size * 4.5 : 0.35 + p.size * 1.2);
+    const a = alpha * distFade * lightFade * (0.15 + p.size * 0.45);
     if (a < 0.004) continue;
     const rgb = mixRgb(rayRgb, glowRgb, p.size * 0.28);
-    const g = ctx.createRadialGradient(x, y, 0, x, y, size * (mode === 'underwater' ? 2.4 : 1.7));
-    g.addColorStop(0, rgba(rgb, a));
-    g.addColorStop(0.45, rgba(rgb, a * 0.35));
-    g.addColorStop(1, 'rgba(0,0,0,0)');
+    const outerR = size * (mode === 'underwater' ? 2.4 : 1.8);
+    const g = ctx.createRadialGradient(x, y, 0, x, y, outerR);
+    g.addColorStop(0,    rgba(rgb, a));
+    g.addColorStop(0.30, rgba(rgb, a * 0.55));
+    g.addColorStop(0.65, rgba(rgb, a * 0.15));
+    g.addColorStop(1,    'rgba(0,0,0,0)');
     ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.arc(x, y, size * 1.7, 0, Math.PI * 2);
+    ctx.arc(x, y, outerR, 0, Math.PI * 2);
     ctx.fill();
   }
 }
