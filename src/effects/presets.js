@@ -338,7 +338,7 @@ export const BUILT_IN_PRESETS = {
     {
       // Dense suspended medium, slow wide undulation, heavy particulate, deep cyan volume
       name: 'Underwater Shaft',
-      params: { sourceX: 46, sourceY: 0, direction: 90, spreadAngle: 56, beamLength: 120, beamWidth: 96, sourceGlow: 64, rayCount: 10, intensity: 74, softness: 100, density: 98, falloff: 44, atmosphericHaze: 100, edgeFeather: 100, noiseAmount: 72, noiseScale: 92, occlusionGaps: 26, dustAmount: 100, driftSpeed: 78, atmosphereMode: 'underwater', rayColor: '#42d0ff', hazeColor: '#0b74a8', glowColor: '#d8fbff', colorBlend: 84, streakSoftness: 92, motionAmount: 96, flickerAmount: 1, drift: 86, breathing: 76, animationSpeed: 82, turbulenceSpeed: 64 },
+      params: { sourceX: 72, sourceY: 0, direction: 118, spreadAngle: 64, beamLength: 118, beamWidth: 82, sourceGlow: 52, rayCount: 10, intensity: 78, softness: 72, density: 92, falloff: 38, atmosphericHaze: 88, edgeFeather: 88, noiseAmount: 68, noiseScale: 78, occlusionGaps: 42, dustAmount: 88, driftSpeed: 72, atmosphereMode: 'underwater', rayColor: '#38c8f8', hazeColor: '#0668a8', glowColor: '#c8f4ff', colorBlend: 78, streakSoftness: 58, motionAmount: 82, flickerAmount: 2, drift: 72, breathing: 52, animationSpeed: 70, turbulenceSpeed: 52 },
     },
     {
       // Thick dirty air, shafts barely legible through haze, subdued palette, moodier atmosphere
