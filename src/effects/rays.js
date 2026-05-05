@@ -73,6 +73,10 @@ function ensureCanvas(layer, w, h) {
     layer.canvas.height = h;
   }
   layer.ctx.setTransform(1, 0, 0, 1, 0, 0);
+  layer.ctx.globalAlpha = 1;
+  layer.ctx.globalCompositeOperation = 'source-over';
+  layer.ctx.shadowBlur = 0;
+  layer.ctx.shadowColor = 'rgba(0,0,0,0)';
   layer.ctx.clearRect(0, 0, w, h);
   return layer.ctx;
 }
@@ -216,34 +220,38 @@ function drawAtmosphericWisps(ctx, sx, sy, dir, maxLen, fieldW, rayRgb, hazeRgb,
 function drawShaftFamily(ctx, sx, sy, angle, len, baseW, rgb, glowRgb, alpha, seed, params) {
   const {
     fieldScale, soft, fall, noiseStr, occStr, wavePhase, motionPhase, nScale,
-    sourceMerge = 0.12,
+    sourceMerge = 0.12, mode = 'dusty',
   } = params;
 
+  const underwater = mode === 'underwater';
   const breath = 1 + Math.sin(motionPhase * (0.8 + seed.intensity * 0.4) + seed.phase) * params.breathAmp;
   const length = len * (0.94 + seed.length * 0.08) * (0.96 + soft * 0.06);
   const width0 = Math.max(0.4, baseW * 0.10 * sourceMerge);
-  const width1 = baseW * seed.width * fieldScale * (0.72 + soft * 0.85) * breath;
-  const densityWave = fbm(seed.phase + wavePhase * 0.42, seed.bias * 2.0, 71, 3);
-  const occWave = fbm(seed.phase - wavePhase * 0.55, seed.slot * nScale, 79, 2);
+  const width1 = baseW * seed.width * fieldScale * (0.72 + soft * (underwater ? 1.18 : 0.85)) * breath;
+  const flowPhase = underwater ? wavePhase * 0.72 : wavePhase;
+  const densityWave = fbm(seed.phase + flowPhase * 0.58, seed.bias * 2.0 + flowPhase * 0.10, 71, underwater ? 4 : 3);
+  const occWave = fbm(seed.phase - flowPhase * 0.70, seed.slot * nScale + flowPhase * 0.16, 79, underwater ? 3 : 2);
   const density = lerp(1, lerp(0.58, 1.16, densityWave), noiseStr);
-  const occlusion = lerp(1, smoothstep((occWave - 0.18) / 0.66), occStr * 0.42);
+  const occlusion = lerp(1, smoothstep((occWave - 0.18) / 0.66), occStr * (underwater ? 0.20 : 0.42));
   const shaftAlpha = alpha * seed.intensity * density * occlusion;
   const haloBoost = params.haloBoost ?? 1;
+  const coreMul = underwater ? 0.52 : 1;
+  const bodyMul = underwater ? 1.70 : 1;
 
   // Wide halo, visible sheet, and narrow core. All follow the same straight
   // light direction, but width gradients keep the sides from reading as objects.
-  drawShaftPlane(ctx, sx, sy, angle, length, width0 * 4.0, width1 * 3.45, rgb, shaftAlpha * 0.20 * haloBoost, {
-    startT: 0.01, endT: 0.99, nearFade: 0.18, farFade: 0.24, fallPower: 0.86, slices: 1, blur: 12 + soft * 22,
+  drawShaftPlane(ctx, sx, sy, angle, length, width0 * (underwater ? 5.4 : 4.0), width1 * (underwater ? 4.9 : 3.45), rgb, shaftAlpha * (underwater ? 0.28 : 0.20) * haloBoost * bodyMul, {
+    startT: 0.01, endT: 0.99, nearFade: 0.18, farFade: underwater ? 0.34 : 0.24, fallPower: underwater ? 0.72 : 0.86, slices: 1, blur: (underwater ? 22 : 12) + soft * (underwater ? 30 : 22),
   });
-  drawShaftPlane(ctx, sx, sy, angle, length, width0 * 2.10, width1 * 1.42, rgb, shaftAlpha * 0.22, {
-    startT: 0.025, endT: 0.985, nearFade: 0.11, farFade: 0.24 + fall * 0.08, fallPower: 1.18 + fall * 0.25, slices: 1, blur: 5 + soft * 10,
+  drawShaftPlane(ctx, sx, sy, angle, length, width0 * (underwater ? 3.0 : 2.10), width1 * (underwater ? 2.15 : 1.42), rgb, shaftAlpha * 0.22 * (underwater ? 0.94 : 1), {
+    startT: 0.025, endT: 0.985, nearFade: 0.11, farFade: (underwater ? 0.34 : 0.24) + fall * 0.08, fallPower: (underwater ? 0.95 : 1.18) + fall * 0.25, slices: 1, blur: (underwater ? 12 : 5) + soft * (underwater ? 18 : 10),
   });
   if (seed.intensity > 0.62) {
-    drawShaftPlane(ctx, sx, sy, angle, length * 0.78, width0 * 0.75, width1 * 0.23, glowRgb, shaftAlpha * 0.095, {
-      startT: 0.055, endT: 0.94, nearFade: 0.08, farFade: 0.30, fallPower: 1.45, slices: 1, blur: 3 + soft * 5,
+    drawShaftPlane(ctx, sx, sy, angle, length * 0.78, width0 * (underwater ? 1.10 : 0.75), width1 * (underwater ? 0.42 : 0.23), glowRgb, shaftAlpha * 0.095 * coreMul, {
+      startT: 0.055, endT: 0.94, nearFade: 0.08, farFade: underwater ? 0.38 : 0.30, fallPower: underwater ? 1.15 : 1.45, slices: 1, blur: (underwater ? 8 : 3) + soft * (underwater ? 12 : 5),
     });
   }
-  if (seed.intensity > 0.86) {
+  if (seed.intensity > 0.86 && (!underwater || params.allowUnderwaterRidges)) {
     drawShaftPlane(ctx, sx, sy, angle, length * 0.70, width0 * 0.42, width1 * 0.12, glowRgb, shaftAlpha * 0.070, {
       startT: 0.035, endT: 0.78, nearFade: 0.07, farFade: 0.32, fallPower: 1.75, slices: 1, blur: 1.5 + soft * 2.4,
     });
@@ -353,13 +361,15 @@ export function createRaysEffect() {
       const occStr = clamp(occlusionGaps / 100) * atmo.occ;
       const feather = clamp(edgeFeather / 100);
       const strkSoft = clamp(streakSoftness / 100);
-      const breathAmp = clamp(breathing / 100) * motionScale * 0.13;
-      const wavePhase = totalTime * (0.10 + driftSpeed / 100 * 0.55) * atmo.flow * (0.4 + animSpeed);
-      const motionPhase = totalTime * (0.18 + animSpeed * 0.52) * (0.35 + motionScale);
+      const underwater = atmosphereMode === 'underwater';
+      const breathAmp = clamp(breathing / 100) * motionScale * (underwater ? 0.24 : 0.16);
+      const wavePhase = totalTime * (0.10 + driftSpeed / 100 * (underwater ? 0.82 : 0.55)) * atmo.flow * (0.45 + animSpeed * 1.25);
+      const motionPhase = totalTime * (0.18 + animSpeed * (underwater ? 0.82 : 0.52)) * (0.40 + motionScale * 0.95);
       const nScale = 0.7 + (noiseScale / 100) * 2.4;
       const globalPulse = 1 + (valueNoise(phase * 1.8, 1.4, 3) - 0.5) * clamp(flickerAmount / 100) * 0.10;
       const lightAlpha = opa * dens * globalPulse;
       const shaftCtx = ensureCanvas(shaftLayer, W, H);
+      const flowTime = totalTime * (0.22 + (drift / 100) * 0.62) * (0.45 + animSpeed * 1.05);
 
       ctx.save();
       ctx.globalCompositeOperation = 'screen';
@@ -400,7 +410,7 @@ export function createRaysEffect() {
         const seed = shaftSeeds[i % shaftSeeds.length];
         const even = familyCount === 1 ? 0 : i / (familyCount - 1) - 0.5;
         const slot = even + seed.slot * 0.20;
-        const clusterDrift = (fbm(i * 0.41, motionPhase * 0.55 + seed.phase, 117, 2) - 0.5) * halfSpread * 0.12 * motionScale;
+        const clusterDrift = (fbm(i * 0.41, motionPhase * 0.55 + seed.phase, 117, 2) - 0.5) * halfSpread * (underwater ? 0.055 : 0.12) * motionScale;
         const angle = dir + slot * spreadUsable * 2 + clusterDrift;
         const edge = Math.abs(slot) * 2;
         const edgeFade = smoothstep(1 - edge * (0.64 + (1 - feather) * 0.26));
@@ -409,7 +419,7 @@ export function createRaysEffect() {
         const shaftRgb = mixRgb(rayRgb, hazeRgb, colorMix);
         const coreRgb = mixRgb(glowRgb, rayRgb, 0.42 + blendFrac * 0.18);
         const baseW = fieldW * (0.040 + soft * 0.050 + strkSoft * 0.026) * atmo.width;
-        const alpha = lightAlpha * haze * edgeFade * (0.25 + strkSoft * 0.16);
+        const alpha = lightAlpha * haze * edgeFade * (0.25 + strkSoft * 0.16) * (underwater ? 0.42 : 1);
         drawShaftFamily(shaftCtx, sx, sy, angle, maxLen, baseW, shaftRgb, coreRgb, alpha, seed, {
           fieldScale: 1,
           soft,
@@ -421,6 +431,8 @@ export function createRaysEffect() {
           nScale,
           breathAmp,
           haloBoost: atmo.halo,
+          mode: atmosphereMode,
+          allowUnderwaterRidges: false,
           sourceMerge: 0.08 + soft * 0.06,
         });
       }
@@ -432,11 +444,25 @@ export function createRaysEffect() {
         const slot = sheetCount === 1 ? 0 : i / (sheetCount - 1) - 0.5;
         const angle = dir + slot * halfSpread * 1.18;
         const sheetRgb = mixRgb(rayRgb, hazeRgb, 0.35 + blendFrac * 0.28);
-        const sheetAlpha = lightAlpha * haze * seed.intensity * 0.14 * atmo.halo;
-        const w = fieldW * (0.16 + soft * 0.15) * atmo.width * seed.width;
+        const sheetAlpha = lightAlpha * haze * seed.intensity * 0.14 * atmo.halo * (underwater ? 0.42 : 1);
+        const w = fieldW * (0.16 + soft * (underwater ? 0.24 : 0.15)) * atmo.width * seed.width;
         drawShaftPlane(shaftCtx, sx, sy, angle, maxLen * (0.96 + seed.length * 0.06), w * 0.08, w * 2.2, sheetRgb, sheetAlpha, {
-          startT: 0.035, endT: 0.99, nearFade: 0.10, farFade: 0.32, fallPower: 0.95, slices: 1, blur: 14 + soft * 20,
+          startT: 0.035, endT: 0.99, nearFade: 0.10, farFade: underwater ? 0.42 : 0.32, fallPower: underwater ? 0.70 : 0.95, slices: 1, blur: (underwater ? 28 : 14) + soft * (underwater ? 30 : 20),
         });
+      }
+
+      if (underwater) {
+        for (let i = 0; i < 4; i++) {
+          const seed = shaftSeeds[(i * 6 + 1) % shaftSeeds.length];
+          const slot = i / 3 - 0.5;
+          const liquidAngle = dir + slot * halfSpread * 0.70 + (fbm(i * 0.7, motionPhase * 0.35 + seed.phase, 233, 2) - 0.5) * halfSpread * 0.035 * motionScale;
+          const liquidRgb = mixRgb(rayRgb, hazeRgb, 0.26 + Math.abs(slot) * 0.12);
+          const liquidW = fieldW * (0.24 + soft * 0.24) * seed.width;
+          const liquidAlpha = lightAlpha * haze * (0.20 + seed.intensity * 0.10);
+          drawShaftPlane(shaftCtx, sx, sy, liquidAngle, maxLen * 1.02, liquidW * 0.12, liquidW * 2.65, liquidRgb, liquidAlpha, {
+            startT: 0.02, endT: 0.995, nearFade: 0.14, farFade: 0.48, fallPower: 0.55, slices: 1, blur: 34 + soft * 34,
+          });
+        }
       }
 
       // A single optical falloff mask across the entire shaft layer prevents
@@ -462,6 +488,32 @@ export function createRaysEffect() {
 
       ctx.drawImage(shaftLayer.canvas, 0, 0);
 
+      if (underwater) {
+        const liquidRgb = mixRgb(rayRgb, hazeRgb, 0.34);
+        ellipseGlow(
+          ctx,
+          sx + ax * maxLen * 0.36,
+          sy + ay * maxLen * 0.36,
+          maxLen * 0.38,
+          fieldW * 0.46,
+          dir,
+          liquidRgb,
+          lightAlpha * haze * 0.42,
+          [0.32, 0.018],
+        );
+        ellipseGlow(
+          ctx,
+          sx + ax * maxLen * 0.50,
+          sy + ay * maxLen * 0.50,
+          maxLen * 0.42,
+          fieldW * 0.80,
+          dir,
+          hazeRgb,
+          lightAlpha * haze * 0.24,
+          [0.34, 0.014],
+        );
+      }
+
       drawAtmosphericWisps(
         ctx,
         sx,
@@ -473,7 +525,7 @@ export function createRaysEffect() {
         hazeRgb,
         lightAlpha * haze * (0.70 + noiseStr * 0.45),
         particleSeeds,
-        totalTime * (0.16 + (drift / 100) * 0.55),
+        flowTime,
         atmo,
         atmosphereMode,
       );
@@ -490,7 +542,7 @@ export function createRaysEffect() {
         glowRgb,
         lightAlpha * (dustAmount / 100) * atmo.dust * 0.42,
         particleSeeds,
-        totalTime * (0.25 + (drift / 100) * 0.75),
+        flowTime * 1.24,
         atmo,
         atmosphereMode,
       );
