@@ -243,6 +243,11 @@ function drawShaftFamily(ctx, sx, sy, angle, len, baseW, rgb, glowRgb, alpha, se
       startT: 0.055, endT: 0.94, nearFade: 0.08, farFade: 0.30, fallPower: 1.45, slices: 1, blur: 3 + soft * 5,
     });
   }
+  if (seed.intensity > 0.86) {
+    drawShaftPlane(ctx, sx, sy, angle, length * 0.70, width0 * 0.42, width1 * 0.12, glowRgb, shaftAlpha * 0.070, {
+      startT: 0.035, endT: 0.78, nearFade: 0.07, farFade: 0.32, fallPower: 1.75, slices: 1, blur: 1.5 + soft * 2.4,
+    });
+  }
 }
 
 function drawAtmosphericDust(ctx, sx, sy, dir, maxLen, fieldW, rayRgb, glowRgb, alpha, seeds, time, atmo, mode) {
@@ -494,10 +499,10 @@ export function createRaysEffect() {
       const glowStr = (sourceGlow / 100) * lightAlpha;
       if (glowStr > 0.004) {
         const baseR = Math.min(W, H);
-        const hotR = baseR * (0.026 + glowStr * 0.042);
+        const hotR = baseR * (0.032 + glowStr * 0.052);
         const hot = ctx.createRadialGradient(sx, sy, 0, sx, sy, hotR);
         hot.addColorStop(0, rgba(glowRgb, glowStr));
-        hot.addColorStop(0.34, rgba(mixRgb(glowRgb, rayRgb, 0.35), glowStr * 0.58));
+        hot.addColorStop(0.34, rgba(mixRgb(glowRgb, rayRgb, 0.35), glowStr * 0.66));
         hot.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = hot;
         ctx.beginPath();
@@ -512,8 +517,19 @@ export function createRaysEffect() {
           baseR * (0.07 + glowStr * 0.10),
           dir,
           mixRgb(rayRgb, glowRgb, 0.36),
-          glowStr * 0.28,
+          glowStr * 0.36,
           [0.20, 0.015],
+        );
+        ellipseGlow(
+          ctx,
+          sx + ax * baseR * 0.13,
+          sy + ay * baseR * 0.13,
+          baseR * (0.24 + glowStr * 0.12),
+          baseR * (0.038 + glowStr * 0.050),
+          dir,
+          mixRgb(rayRgb, glowRgb, 0.28),
+          glowStr * 0.16,
+          [0.16, 0.010],
         );
       }
 
