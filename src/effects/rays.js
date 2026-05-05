@@ -237,27 +237,27 @@ function drawShaftFamily(ctx, sx, sy, angle, len, baseW, rgb, glowRgb, alpha, se
   const shaftAlpha = alpha * seed.intensity * densityMod * familyVisible;
   const haloBoost = params.haloBoost ?? 1;
   const coreMul = underwater ? 0.52 : 1;
-  const bodyMul = underwater ? 1.70 : 1;
+  const bodyMul = underwater ? 1.20 : 1;
 
   // Wide halo, visible sheet, and narrow core. All follow the same straight
   // light direction, but width gradients keep the sides from reading as objects.
   // Underwater uses much lower blur to preserve distinct shaft edges and gaps.
   const uwBlurScale = underwater ? 0 : 1;
-  drawShaftPlane(ctx, sx, sy, angle, length, width0 * (underwater ? 5.4 : 4.6), width1 * (underwater ? 4.9 : 4.40), rgb, shaftAlpha * (underwater ? 0.34 : 0.17) * haloBoost * bodyMul, {
-    startT: 0.01, endT: 0.99, nearFade: 0.18, farFade: underwater ? 0.28 : 0.24, fallPower: underwater ? 0.62 : 0.86, slices: underwater ? 6 : 1, blur: ((underwater ? 6 : 12) + soft * (underwater ? 8 : 22)) * uwBlurScale,
+  drawShaftPlane(ctx, sx, sy, angle, length, width0 * (underwater ? 5.4 : 4.6), width1 * (underwater ? 3.20 : 4.40), rgb, shaftAlpha * (underwater ? 0.34 : 0.17) * haloBoost * bodyMul, {
+    startT: 0.01, endT: 0.99, nearFade: 0.18, farFade: underwater ? 0.28 : 0.24, fallPower: underwater ? 0.62 : 0.65, slices: 1, blur: ((underwater ? 6 : 12) + soft * (underwater ? 8 : 22)) * uwBlurScale,
   });
-  drawShaftPlane(ctx, sx, sy, angle, length, width0 * (underwater ? 3.0 : 2.40), width1 * (underwater ? 2.15 : 1.90), rgb, shaftAlpha * (underwater ? 0.38 : 0.28), {
-    startT: 0.025, endT: 0.985, nearFade: 0.11, farFade: (underwater ? 0.28 : 0.24) + fall * 0.08, fallPower: (underwater ? 0.80 : 1.18) + fall * 0.25, slices: underwater ? 8 : 1, blur: ((underwater ? 3 : 5) + soft * (underwater ? 5 : 10)) * uwBlurScale,
+  drawShaftPlane(ctx, sx, sy, angle, length, width0 * (underwater ? 3.0 : 2.40), width1 * (underwater ? 1.80 : 1.90), rgb, shaftAlpha * (underwater ? 0.38 : 0.28), {
+    startT: 0.025, endT: 0.985, nearFade: 0.11, farFade: (underwater ? 0.28 : 0.24) + fall * 0.08, fallPower: (underwater ? 0.80 : 0.90) + fall * 0.22, slices: 1, blur: ((underwater ? 3 : 5) + soft * (underwater ? 5 : 10)) * uwBlurScale,
   });
   if (seed.intensity > 0.62) {
     drawShaftPlane(ctx, sx, sy, angle, length * (underwater ? 0.92 : 0.78), width0 * (underwater ? 1.10 : 0.75), width1 * (underwater ? 0.52 : 0.23), glowRgb, shaftAlpha * (underwater ? 0.18 : 0.095) * coreMul, {
-      startT: 0.055, endT: 0.94, nearFade: 0.08, farFade: underwater ? 0.30 : 0.30, fallPower: underwater ? 0.90 : 1.45, slices: underwater ? 8 : 1, blur: ((underwater ? 2 : 3) + soft * (underwater ? 3 : 5)) * uwBlurScale,
+      startT: 0.055, endT: 0.94, nearFade: 0.08, farFade: underwater ? 0.30 : 0.30, fallPower: underwater ? 0.90 : 1.45, slices: 1, blur: ((underwater ? 2 : 3) + soft * (underwater ? 3 : 5)) * uwBlurScale,
     });
   }
   // Ridges always enabled for underwater — the bright centerline defines each shaft
   if (seed.intensity > 0.62 && underwater) {
     drawShaftPlane(ctx, sx, sy, angle, length * 0.88, width0 * 0.60, width1 * 0.18, glowRgb, shaftAlpha * 0.14, {
-      startT: 0.03, endT: 0.95, nearFade: 0.06, farFade: 0.25, fallPower: 0.95, slices: 10, blur: 1.5 + soft * 2.0,
+      startT: 0.03, endT: 0.95, nearFade: 0.06, farFade: 0.25, fallPower: 0.95, slices: 2, blur: 1.5 + soft * 2.0,
     });
   }
   if (seed.intensity > 0.86 && !underwater) {
@@ -376,10 +376,12 @@ export function createRaysEffect() {
       const motionPhase = totalTime * (0.18 + animSpeed * (underwater ? 0.82 : 0.52)) * (0.40 + motionScale * 0.95);
       const nScale = 0.7 + (noiseScale / 100) * 2.4;
       const globalPulse = 1 + (valueNoise(phase * 1.8, 1.4, 3) - 0.5) * clamp(flickerAmount / 100) * 0.10;
+      const sceneBreathe = 1 + Math.sin(totalTime * 0.11) * 0.045
+                             + Math.sin(totalTime * 0.073 + 1.4) * 0.028;
       const fanSweepAmp  = halfSpread * 0.18 * motionScale * (0.4 + animSpeed * 0.8);
       const fanSweepFreq = 0.055 + (driftSpeed / 100) * 0.045;
       const globalFanSweep = Math.sin(totalTime * fanSweepFreq) * fanSweepAmp;
-      const lightAlpha = opa * dens * globalPulse;
+      const lightAlpha = opa * dens * globalPulse * sceneBreathe;
       const shaftCtx = ensureCanvas(shaftLayer, W, H);
       const flowTime = totalTime * (0.22 + (drift / 100) * 0.62) * (0.45 + animSpeed * 1.05);
 
@@ -425,7 +427,7 @@ export function createRaysEffect() {
 
       // Straight widening shaft families. Layout moves subtly, but centerlines stay straight.
       const shaftCount = Math.max(2, Math.round(rayCount));
-      const familyCount = Math.max(3, Math.min(11, Math.round(shaftCount * (underwater ? 0.92 : 0.72))));
+      const familyCount = Math.max(3, Math.min(11, Math.round(shaftCount * (underwater ? 0.72 : 0.72))));
       const spreadUsable = halfSpread * (0.62 + feather * 0.30);
       for (let i = 0; i < familyCount; i++) {
         const seed = shaftSeeds[i % shaftSeeds.length];
@@ -439,7 +441,8 @@ export function createRaysEffect() {
         const edge = Math.abs(slot) * 2;
         const edgeFade = smoothstep(1 - edge * (0.64 + (1 - feather) * 0.26));
         if (edgeFade < 0.015) continue;
-        const colorMix = clamp(blendFrac * (0.18 + Math.abs(slot) * 0.35));
+        const outerCool = Math.pow(Math.abs(slot) * 2, 1.4);
+        const colorMix = clamp(blendFrac * (0.18 + Math.abs(slot) * 0.35) + outerCool * 0.12);
         const shaftRgb = mixRgb(rayRgb, hazeRgb, colorMix);
         const coreRgb = mixRgb(glowRgb, rayRgb, 0.42 + blendFrac * 0.18);
         const baseW = fieldW * (0.040 + soft * 0.050 + strkSoft * 0.026) * atmo.width;
@@ -489,7 +492,7 @@ export function createRaysEffect() {
           const uwW = fieldW * (0.18 + soft * 0.12) * seed.width;
           // These are the ambient inter-shaft glow, kept faint and crisp
           drawShaftPlane(shaftCtx, sx, sy, uwAngle, maxLen * 1.02, uwW * 0.06, uwW * 1.8, uwRgb, lightAlpha * haze * seed.intensity * 0.12, {
-            startT: 0.02, endT: 0.98, nearFade: 0.10, farFade: 0.22, fallPower: 0.65, slices: 5, blur: 6 + soft * 8,
+            startT: 0.02, endT: 0.98, nearFade: 0.10, farFade: 0.22, fallPower: 0.65, slices: 1, blur: 6 + soft * 8,
           });
         }
       }
@@ -577,6 +580,24 @@ export function createRaysEffect() {
         atmo,
         atmosphereMode,
       );
+
+      // Sparse large bokeh motes for dark-atmosphere modes (the drifting orbs visible in clean/dark references)
+      if (atmosphereMode === 'clean' || atmosphereMode === 'smoky' || atmosphereMode === 'foggy' || atmosphereMode === 'misty') {
+        const moteCount = atmosphereMode === 'clean' ? 6 : 4;
+        for (let m = 0; m < moteCount; m++) {
+          const p = particleSeeds[(m * 11 + 3) % particleSeeds.length];
+          const drift = fract(p.dist * 0.6 + flowTime * (0.008 + p.speed * 0.012));
+          const side  = p.side * 1.10;
+          const x = sx + ax * maxLen * drift + (-ay) * side * fieldW;
+          const y = sy + ay * maxLen * drift + ax * side * fieldW;
+          const r = Math.min(W, H) * (0.022 + p.size * 0.038);
+          const fadeDist = Math.pow(1 - drift, 0.5) * smoothstep(1 - Math.abs(side) / 1.1);
+          const moteRgb = mixRgb(hazeRgb, glowRgb, 0.55 + p.type * 0.35);
+          const ma = lightAlpha * haze * fadeDist * (0.18 + p.size * 0.22) * 0.55;
+          if (ma < 0.004) continue;
+          ellipseGlow(ctx, x, y, r * 1.8, r, dir + p.side * 0.4, moteRgb, ma, [0.25, 0.02]);
+        }
+      }
 
       // Dust and particulate. It is deterministic so browsers stay in sync.
       drawAtmosphericDust(
