@@ -341,7 +341,7 @@ function drawMicroParticles(ctx, sx, sy, dir, W, H, maxLen, fieldW, rayRgb, glow
 
     const r = mc.size * (0.35 + p.size * 1.30) * pSizeMul;
     const a = alpha * distFade * sideFade * mc.opacity * (0.30 + p.size * 0.55) * pBrightMul;
-    if (a < 0.005 || r < 0.5) continue;
+    if (a < 0.005 || r < 0.28) continue;
 
     const rgb = mixRgb(rayRgb, glowRgb, mc.tint * (0.45 + p.size * 0.55));
 
@@ -397,9 +397,11 @@ function drawAtmosphericDust(ctx, sx, sy, dir, maxLen, fieldW, rayRgb, glowRgb, 
     // Power-law size distribution: ~70% tiny, ~22% medium, ~8% rare large motes.
     // Large mote caps reduced so they don't overwhelm as oversized blobs.
     const sizeClass = fract(p.type * 7.3 + p.phase * 0.159);
+    // Size tiers reduced so dust reads as fine particulate, not oversized blobs.
+    // Large tier made rarer (>0.95, ~5%) and capped smaller.
     const size = mode === 'underwater'
-      ? (sizeClass > 0.85 ? 2.0 + p.size * 3.5 : sizeClass > 0.55 ? 1.2 + p.size * 2.2 : 0.4 + p.size * 0.9)
-      : (sizeClass > 0.92 ? 3.5 + p.size * 5.0 : sizeClass > 0.72 ? 1.8 + p.size * 4.5 : 0.35 + p.size * 1.2);
+      ? (sizeClass > 0.88 ? 1.4 + p.size * 2.0 : sizeClass > 0.58 ? 0.7 + p.size * 1.4 : 0.22 + p.size * 0.65)
+      : (sizeClass > 0.95 ? 1.8 + p.size * 2.5 : sizeClass > 0.75 ? 0.8 + p.size * 1.8 : 0.22 + p.size * 0.75);
     const a = alpha * distFade * lightFade * (0.15 + p.size * 0.45) * pBrightMul;
     if (a < 0.004) continue;
     const rgb = mixRgb(rayRgb, glowRgb, p.size * 0.28);
@@ -604,6 +606,7 @@ export function createRaysEffect() {
           const w = fieldW * (0.16 + soft * 0.15) * atmo.width * seed.width;
           drawShaftPlane(shaftCtx, sx, sy, angle, maxLen * (0.96 + seed.length * 0.06), w * 0.08, w * 2.2, sheetRgb, sheetAlpha, {
             startT: 0.035, endT: 0.99, nearFade: 0.10, farFade: 0.32, fallPower: 0.95, slices: 1, blur: 14 + soft * 20,
+            noiseBreak: { u: seed.phase + wavePhase * 0.06, v: seed.slot }, noiseBreakStr: 0.35,
           });
         }
       }
@@ -620,6 +623,7 @@ export function createRaysEffect() {
           // These are the ambient inter-shaft glow, kept faint and crisp
           drawShaftPlane(shaftCtx, sx, sy, uwAngle, maxLen * 1.02, uwW * 0.06, uwW * 1.8, uwRgb, lightAlpha * haze * seed.intensity * 0.12, {
             startT: 0.02, endT: 0.98, nearFade: 0.10, farFade: 0.22, fallPower: 0.65, slices: 1, blur: 6 + soft * 8,
+            noiseBreak: { u: seed.phase + wavePhase * 0.06, v: seed.slot }, noiseBreakStr: 0.30,
           });
         }
       }
