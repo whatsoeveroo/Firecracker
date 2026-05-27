@@ -179,7 +179,10 @@ function drawShaftPlane(ctx, sx, sy, angle, len, width0, width1, rgb, alpha, opt
     // so the breakup animates gently rather than being static.
     if (noiseBreak) {
       const nbVal = fbm(tm * 3.1 + noiseBreak.u, noiseBreak.v, 47, 2);
-      sectionAlpha *= 1 + (nbVal - 0.5) * noiseBreakStr;
+      // Weight noiseBreak strongest near source (tm≈0) where shaft edges converge and look hardest.
+      // Smoothly ramps from 2.5× boost at the source down to 0.8× at tm=0.30+.
+      const nearBoost = lerp(2.5, 0.8, smoothstep(tm / 0.30));
+      sectionAlpha *= 1 + (nbVal - 0.5) * noiseBreakStr * nearBoost;
     }
     if (sectionAlpha < 0.0015) continue;
 
@@ -284,12 +287,12 @@ function drawShaftFamily(ctx, sx, sy, angle, len, baseW, rgb, glowRgb, alpha, se
   const nb = { u: seed.phase + params.wavePhase * 0.08, v: seed.slot };
   // Outer halo: reduced alpha by 0.75× and stronger noiseBreak to dissolve edges
   drawShaftPlane(ctx, sx, sy, angle, length, width0 * (underwater ? 5.4 : 4.6), width1 * (underwater ? 3.20 : 4.40), rgb, shaftAlpha * (underwater ? 0.34 : 0.17) * 0.75 * haloBoost * bodyMul, {
-    startT: 0.01, endT: 0.99, nearFade: 0.18, farFade: underwater ? 0.28 : 0.24, fallPower: underwater ? 0.62 : 0.65, slices: 1, blur: ((underwater ? 6 : 12) + soft * (underwater ? 8 : 22)) * uwBlurScale,
+    startT: 0.01, endT: 0.99, nearFade: underwater ? 0.32 : 0.18, farFade: underwater ? 0.28 : 0.24, fallPower: underwater ? 0.62 : 0.65, slices: 1, blur: ((underwater ? 6 : 12) + soft * (underwater ? 8 : 22)) * uwBlurScale,
     noiseBreak: nb, noiseBreakStr: 0.42,
   });
   // Main body plane
   drawShaftPlane(ctx, sx, sy, angle, length, width0 * (underwater ? 3.0 : 2.40), width1 * (underwater ? 1.80 : 1.90), rgb, shaftAlpha * (underwater ? 0.38 : 0.28), {
-    startT: 0.025, endT: 0.985, nearFade: 0.11, farFade: (underwater ? 0.28 : 0.24) + fall * 0.08, fallPower: (underwater ? 0.80 : 0.90) + fall * 0.22, slices: 1, blur: ((underwater ? 3 : 5) + soft * (underwater ? 5 : 10)) * uwBlurScale,
+    startT: 0.025, endT: 0.985, nearFade: underwater ? 0.22 : 0.11, farFade: (underwater ? 0.28 : 0.24) + fall * 0.08, fallPower: (underwater ? 0.80 : 0.90) + fall * 0.22, slices: 1, blur: ((underwater ? 3 : 5) + soft * (underwater ? 5 : 10)) * uwBlurScale,
     noiseBreak: nb, noiseBreakStr: 0.22,
   });
   if (seed.intensity > 0.62) {
@@ -626,6 +629,24 @@ export function createRaysEffect() {
             noiseBreak: { u: seed.phase + wavePhase * 0.06, v: seed.slot }, noiseBreakStr: 0.30,
           });
         }
+      }
+
+      // Source convergence erase (underwater only) — all shafts converge at (sx,sy), creating
+      // a hard starburst of edges right at the light point.  Erase the centre of shaftLayer
+      // with a soft radial so those convergence lines dissolve into the source bloom.
+      if (underwater) {
+        shaftCtx.save();
+        shaftCtx.globalCompositeOperation = 'destination-out';
+        const srcEraseR = Math.min(W, H) * (0.10 + soft * 0.08);
+        const srcErase = shaftCtx.createRadialGradient(sx, sy, 0, sx, sy, srcEraseR);
+        srcErase.addColorStop(0.00, 'rgba(255,255,255,0.90)');
+        srcErase.addColorStop(0.50, 'rgba(255,255,255,0.40)');
+        srcErase.addColorStop(1.00, 'rgba(255,255,255,0)');
+        shaftCtx.fillStyle = srcErase;
+        shaftCtx.beginPath();
+        shaftCtx.arc(sx, sy, srcEraseR, 0, Math.PI * 2);
+        shaftCtx.fill();
+        shaftCtx.restore();
       }
 
       // Optical falloff mask — underwater uses a slower fade so shafts reach the frame bottom.
