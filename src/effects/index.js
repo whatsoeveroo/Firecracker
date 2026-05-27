@@ -443,8 +443,9 @@ export const EFFECTS = [
       // STREAKS
       rayCount:       11,   streakSoftness: 42,
       occlusionGaps:  62,   noiseAmount:    72,
-      noiseScale:     52,   dustAmount:     70,
-      driftSpeed:     30,
+      noiseScale:     52,   driftSpeed:     30,
+      // PARTICLES
+      dustAmount:     70,   particleSize:   40,   particleBrightness: 50,
       // ATMOSPHERE
       atmosphereMode: 'dusty',
       // COLOR (direct 3-color system)
@@ -479,11 +480,11 @@ export const EFFECTS = [
       { key: 'occlusionGaps',  label: 'Occlusion Gaps',  min: 0,  max: 100, group: 'Streaks' },
       { key: 'noiseAmount',    label: 'Noise Amount',    min: 0,  max: 100, group: 'Streaks' },
       { key: 'noiseScale',     label: 'Noise Scale',     min: 5,  max: 100, group: 'Streaks' },
-      { key: 'dustAmount',     label: 'Dust Amount',     min: 0,  max: 100, group: 'Streaks' },
       { key: 'driftSpeed',     label: 'Particle Drift',  min: 0,  max: 100, group: 'Streaks' },
       // ── ATMOSPHERE ──
       {
         key: 'atmosphereMode', label: 'Atmosphere Type', type: 'select', group: 'Atmosphere',
+        subgroup: 'Mode',
         options: [
           { value: 'clean',      label: 'Clean Air'       },
           { value: 'dusty',      label: 'Dusty Room'      },
@@ -493,6 +494,11 @@ export const EFFECTS = [
           { value: 'misty',      label: 'Cathedral / Airy'},
         ],
       },
+      // dustAmount controls how many particles are visible (density).
+      // particleSize and particleBrightness scale the visual appearance of each particle.
+      { key: 'dustAmount',        label: 'Dust Amount',        min: 0, max: 100, default: 58, step: 1, group: 'Atmosphere', subgroup: 'Particles' },
+      { key: 'particleSize',      label: 'Particle Size',      min: 0, max: 100, default: 40, step: 1, group: 'Atmosphere', subgroup: 'Particles' },
+      { key: 'particleBrightness',label: 'Particle Brightness',min: 0, max: 100, default: 50, step: 1, group: 'Atmosphere', subgroup: 'Particles' },
       // ── COLOR ──
       { key: 'rayColor',    label: 'Ray Color',   type: 'color', group: 'Color' },
       { key: 'hazeColor',   label: 'Haze Color',  type: 'color', group: 'Color' },

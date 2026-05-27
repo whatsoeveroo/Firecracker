@@ -67,12 +67,14 @@ const ATMO = {
 
 const MICRO = {
   //             count  size   speed   rise    spread  tint   opacity
-  clean:      {  count: 22,  size: 2.0,  speed: 0.12, rise: -0.014, spread: 1.05, tint: 0.70, opacity: 0.80 },
-  dusty:      {  count: 58,  size: 3.2,  speed: 0.22, rise:  0.028, spread: 0.92, tint: 0.25, opacity: 0.88 },
-  foggy:      {  count: 82,  size: 1.4,  speed: 0.06, rise:  0.006, spread: 1.40, tint: 0.82, opacity: 0.65 },
-  smoky:      {  count: 50,  size: 2.6,  speed: 0.30, rise: -0.042, spread: 0.88, tint: 0.16, opacity: 0.75 },
-  underwater: {  count: 44,  size: 3.8,  speed: 0.18, rise: -0.065, spread: 0.82, tint: 0.90, opacity: 0.90 },
-  misty:      {  count: 76,  size: 1.2,  speed: 0.08, rise:  0.010, spread: 1.28, tint: 0.78, opacity: 0.60 },
+  // NOTE: size values deliberately small — feel like suspended dust/mist particulates,
+  // not oversized glowing blobs. User-facing particleSize param multiplies these at draw time.
+  clean:      {  count: 22,  size: 0.85, speed: 0.12, rise: -0.014, spread: 1.05, tint: 0.70, opacity: 0.80 },
+  dusty:      {  count: 58,  size: 1.35, speed: 0.22, rise:  0.028, spread: 0.92, tint: 0.25, opacity: 0.88 },
+  foggy:      {  count: 82,  size: 0.58, speed: 0.06, rise:  0.006, spread: 1.40, tint: 0.82, opacity: 0.65 },
+  smoky:      {  count: 50,  size: 1.10, speed: 0.30, rise: -0.042, spread: 0.88, tint: 0.16, opacity: 0.75 },
+  underwater: {  count: 44,  size: 1.60, speed: 0.18, rise: -0.065, spread: 0.82, tint: 0.90, opacity: 0.90 },
+  misty:      {  count: 76,  size: 0.50, speed: 0.08, rise:  0.010, spread: 1.28, tint: 0.78, opacity: 0.60 },
 };
 
 // ─── offscreen ────────────────────────────────────────────────────────────────
@@ -148,8 +150,11 @@ function drawShaftPlane(ctx, sx, sy, angle, len, width0, width1, rgb, alpha, opt
   const farFade = options.farFade ?? 0.10;
   const nearFade = options.nearFade ?? 0.10;
   const slices = options.slices ?? 1;
-  const edgePower = options.edgePower ?? 1.18;
   const blur = options.blur ?? 0;
+  // noiseBreak: { u, v } — seeds for slowly-animating edge irregularity.
+  // Multiplies sectionAlpha by a small FBM term so trapezoid edges aren't uniform.
+  const noiseBreak = options.noiseBreak ?? null;
+  const noiseBreakStr = options.noiseBreakStr ?? 0.22;
 
   ctx.save();
   ctx.globalCompositeOperation = options.blend || 'screen';
@@ -168,7 +173,14 @@ function drawShaftPlane(ctx, sx, sy, angle, len, width0, width1, rgb, alpha, opt
     const near = smoothstep((tm - startT) / Math.max(0.001, nearFade));
     const far = smoothstep((endT - tm) / Math.max(0.001, farFade));
     const distanceFade = Math.pow(Math.max(0, 1 - tm), options.fallPower ?? 1.25);
-    const sectionAlpha = alpha * near * far * (0.28 + distanceFade * 0.92);
+    let sectionAlpha = alpha * near * far * (0.28 + distanceFade * 0.92);
+    // Apply noise breakup — irregular brightness profile along beam length.
+    // Seeds evolve slowly with time (via the phase/slot passed from the caller)
+    // so the breakup animates gently rather than being static.
+    if (noiseBreak) {
+      const nbVal = fbm(tm * 3.1 + noiseBreak.u, noiseBreak.v, 47, 2);
+      sectionAlpha *= 1 + (nbVal - 0.5) * noiseBreakStr;
+    }
     if (sectionAlpha < 0.0015) continue;
 
     const w0 = width0 + (width1 - width0) * t0;
@@ -177,12 +189,16 @@ function drawShaftPlane(ctx, sx, sy, angle, len, width0, width1, rgb, alpha, opt
     const mx = sx + ax * len * tm;
     const my = sy + ay * len * tm;
     const g = ctx.createLinearGradient(mx + px * wm, my + py * wm, mx - px * wm, my - py * wm);
+    // Softened gradient: smoother ramp, less sharp shoulder at edges.
+    // Before: 0.18→0.12, 0.34→0.50. After: 0.12→0.06, 0.28→0.30, 0.45→0.75.
     g.addColorStop(0.00, 'rgba(0,0,0,0)');
-    g.addColorStop(0.18, rgba(rgb, sectionAlpha * 0.12));
-    g.addColorStop(0.34, rgba(rgb, sectionAlpha * 0.50));
+    g.addColorStop(0.12, rgba(rgb, sectionAlpha * 0.06));
+    g.addColorStop(0.28, rgba(rgb, sectionAlpha * 0.30));
+    g.addColorStop(0.45, rgba(rgb, sectionAlpha * 0.75));
     g.addColorStop(0.50, rgba(rgb, sectionAlpha));
-    g.addColorStop(0.66, rgba(rgb, sectionAlpha * 0.50));
-    g.addColorStop(0.82, rgba(rgb, sectionAlpha * 0.12));
+    g.addColorStop(0.55, rgba(rgb, sectionAlpha * 0.75));
+    g.addColorStop(0.72, rgba(rgb, sectionAlpha * 0.30));
+    g.addColorStop(0.88, rgba(rgb, sectionAlpha * 0.06));
     g.addColorStop(1.00, 'rgba(0,0,0,0)');
 
     ctx.fillStyle = g;
@@ -262,32 +278,44 @@ function drawShaftFamily(ctx, sx, sy, angle, len, baseW, rgb, glowRgb, alpha, se
   // Wide halo, visible sheet, and narrow core. All follow the same straight
   // light direction, but width gradients keep the sides from reading as objects.
   // Underwater uses much lower blur to preserve distinct shaft edges and gaps.
+  // noiseBreak seeds use seed.phase (time-varying via wavePhase at call site) so
+  // the edge irregularity animates slowly — avoiding static straight-line artifacts.
   const uwBlurScale = underwater ? 0 : 1;
-  drawShaftPlane(ctx, sx, sy, angle, length, width0 * (underwater ? 5.4 : 4.6), width1 * (underwater ? 3.20 : 4.40), rgb, shaftAlpha * (underwater ? 0.34 : 0.17) * haloBoost * bodyMul, {
+  const nb = { u: seed.phase + params.wavePhase * 0.08, v: seed.slot };
+  // Outer halo: reduced alpha by 0.75× and stronger noiseBreak to dissolve edges
+  drawShaftPlane(ctx, sx, sy, angle, length, width0 * (underwater ? 5.4 : 4.6), width1 * (underwater ? 3.20 : 4.40), rgb, shaftAlpha * (underwater ? 0.34 : 0.17) * 0.75 * haloBoost * bodyMul, {
     startT: 0.01, endT: 0.99, nearFade: 0.18, farFade: underwater ? 0.28 : 0.24, fallPower: underwater ? 0.62 : 0.65, slices: 1, blur: ((underwater ? 6 : 12) + soft * (underwater ? 8 : 22)) * uwBlurScale,
+    noiseBreak: nb, noiseBreakStr: 0.42,
   });
+  // Main body plane
   drawShaftPlane(ctx, sx, sy, angle, length, width0 * (underwater ? 3.0 : 2.40), width1 * (underwater ? 1.80 : 1.90), rgb, shaftAlpha * (underwater ? 0.38 : 0.28), {
     startT: 0.025, endT: 0.985, nearFade: 0.11, farFade: (underwater ? 0.28 : 0.24) + fall * 0.08, fallPower: (underwater ? 0.80 : 0.90) + fall * 0.22, slices: 1, blur: ((underwater ? 3 : 5) + soft * (underwater ? 5 : 10)) * uwBlurScale,
+    noiseBreak: nb, noiseBreakStr: 0.22,
   });
   if (seed.intensity > 0.62) {
     drawShaftPlane(ctx, sx, sy, angle, length * (underwater ? 0.92 : 0.78), width0 * (underwater ? 1.10 : 0.75), width1 * (underwater ? 0.52 : 0.23), glowRgb, shaftAlpha * (underwater ? 0.18 : 0.095) * coreMul, {
       startT: 0.055, endT: 0.94, nearFade: 0.08, farFade: underwater ? 0.30 : 0.30, fallPower: underwater ? 0.90 : 1.45, slices: 1, blur: ((underwater ? 2 : 3) + soft * (underwater ? 3 : 5)) * uwBlurScale,
+      noiseBreak: nb, noiseBreakStr: 0.18,
     });
   }
   // Ridges always enabled for underwater — the bright centerline defines each shaft
   if (seed.intensity > 0.62 && underwater) {
     drawShaftPlane(ctx, sx, sy, angle, length * 0.88, width0 * 0.60, width1 * 0.18, glowRgb, shaftAlpha * 0.14, {
       startT: 0.03, endT: 0.95, nearFade: 0.06, farFade: 0.25, fallPower: 0.95, slices: 2, blur: 1.5 + soft * 2.0,
+      noiseBreak: nb, noiseBreakStr: 0.15,
     });
   }
   if (seed.intensity > 0.86 && !underwater) {
     drawShaftPlane(ctx, sx, sy, angle, length * 0.70, width0 * 0.42, width1 * 0.12, glowRgb, shaftAlpha * 0.070, {
       startT: 0.035, endT: 0.78, nearFade: 0.07, farFade: 0.32, fallPower: 1.75, slices: 1, blur: 1.5 + soft * 2.4,
+      noiseBreak: nb, noiseBreakStr: 0.15,
     });
   }
 }
 
-function drawMicroParticles(ctx, sx, sy, dir, W, H, maxLen, fieldW, rayRgb, glowRgb, alpha, seeds, time, atmo, mode) {
+// pSizeMul multiplies rendered particle radius (0.30–1.70×, from particleSize param).
+// pBrightMul multiplies particle alpha/brightness (0.25–1.75×, from particleBrightness param).
+function drawMicroParticles(ctx, sx, sy, dir, W, H, maxLen, fieldW, rayRgb, glowRgb, alpha, seeds, time, atmo, mode, pSizeMul = 1.0, pBrightMul = 1.0) {
   const mc = MICRO[mode] || MICRO.dusty;
   if (alpha < 0.003) return;
   const ax = Math.cos(dir), ay = Math.sin(dir);
@@ -311,8 +339,8 @@ function drawMicroParticles(ctx, sx, sy, dir, W, H, maxLen, fieldW, rayRgb, glow
     const sideFade = smoothstep(1 - Math.abs(side) / (mc.spread * 1.15));
     if (distFade * sideFade < 0.018) continue;
 
-    const r = mc.size * (0.35 + p.size * 1.30);
-    const a = alpha * distFade * sideFade * mc.opacity * (0.30 + p.size * 0.55);
+    const r = mc.size * (0.35 + p.size * 1.30) * pSizeMul;
+    const a = alpha * distFade * sideFade * mc.opacity * (0.30 + p.size * 0.55) * pBrightMul;
     if (a < 0.005 || r < 0.5) continue;
 
     const rgb = mixRgb(rayRgb, glowRgb, mc.tint * (0.45 + p.size * 0.55));
@@ -340,7 +368,10 @@ function drawMicroParticles(ctx, sx, sy, dir, W, H, maxLen, fieldW, rayRgb, glow
   }
 }
 
-function drawAtmosphericDust(ctx, sx, sy, dir, maxLen, fieldW, rayRgb, glowRgb, alpha, seeds, time, atmo, mode) {
+// dustAmount controls particle density — higher = more particles on screen.
+// pSizeMul multiplies the rendered size of each dust mote (0.30–1.70×).
+// pBrightMul multiplies the alpha/brightness of each dust mote (0.25–1.75×).
+function drawAtmosphericDust(ctx, sx, sy, dir, maxLen, fieldW, rayRgb, glowRgb, alpha, seeds, time, atmo, mode, pSizeMul = 1.0, pBrightMul = 1.0) {
   if (alpha < 0.002) return;
   const ax = Math.cos(dir), ay = Math.sin(dir);
   const px = -ay, py = ax;
@@ -363,15 +394,16 @@ function drawAtmosphericDust(ctx, sx, sy, dir, maxLen, fieldW, rayRgb, glowRgb, 
     const y = sy + ay * maxLen * u + py * side * width;
     const distFade = Math.pow(1 - u, 0.7);
     const lightFade = smoothstep(1 - Math.abs(side) / 0.88);
-    // Power-law size distribution: ~70% tiny, ~22% medium, ~8% rare large
+    // Power-law size distribution: ~70% tiny, ~22% medium, ~8% rare large motes.
+    // Large mote caps reduced so they don't overwhelm as oversized blobs.
     const sizeClass = fract(p.type * 7.3 + p.phase * 0.159);
     const size = mode === 'underwater'
-      ? (sizeClass > 0.85 ? 3.5 + p.size * 5.5 : sizeClass > 0.55 ? 1.2 + p.size * 2.2 : 0.4 + p.size * 0.9)
-      : (sizeClass > 0.92 ? 5.0 + p.size * 10.0 : sizeClass > 0.72 ? 1.8 + p.size * 4.5 : 0.35 + p.size * 1.2);
-    const a = alpha * distFade * lightFade * (0.15 + p.size * 0.45);
+      ? (sizeClass > 0.85 ? 2.0 + p.size * 3.5 : sizeClass > 0.55 ? 1.2 + p.size * 2.2 : 0.4 + p.size * 0.9)
+      : (sizeClass > 0.92 ? 3.5 + p.size * 5.0 : sizeClass > 0.72 ? 1.8 + p.size * 4.5 : 0.35 + p.size * 1.2);
+    const a = alpha * distFade * lightFade * (0.15 + p.size * 0.45) * pBrightMul;
     if (a < 0.004) continue;
     const rgb = mixRgb(rayRgb, glowRgb, p.size * 0.28);
-    const outerR = size * (mode === 'underwater' ? 2.4 : 1.8);
+    const outerR = size * (mode === 'underwater' ? 2.4 : 1.8) * pSizeMul;
     const g = ctx.createRadialGradient(x, y, 0, x, y, outerR);
     g.addColorStop(0,    rgba(rgb, a));
     g.addColorStop(0.30, rgba(rgb, a * 0.55));
@@ -410,7 +442,11 @@ export function createRaysEffect() {
         edgeFeather     = 88,   rayCount        = 11,
         streakSoftness  = 60,   occlusionGaps   = 56,
         noiseAmount     = 72,   noiseScale      = 54,
+        // dustAmount controls particle density — more particles visible at higher values.
         dustAmount      = 58,   driftSpeed      = 18,
+        // particleSize (0–100, default 40): scales particle radius across all atmospheric layers.
+        // particleBrightness (0–100, default 50): scales particle alpha/brightness.
+        particleSize    = 40,   particleBrightness = 50,
         atmosphereMode  = 'dusty',
         rayColor        = '#ffcc77',
         hazeColor       = '#c89040',
@@ -420,6 +456,12 @@ export function createRaysEffect() {
         flickerAmount   = 8,    breathing       = 18,
         animationSpeed  = 55,   turbulenceSpeed = 22,
       } = params;
+
+      // Map 0–100 param range to useful multiplier ranges:
+      //   particleSize:       0→0.30×, 50→1.00×, 100→1.70×
+      //   particleBrightness: 0→0.25×, 50→1.00×, 100→1.75×
+      const pSizeMul   = 0.30 + (particleSize       / 100) * 1.40;
+      const pBrightMul = 0.25 + (particleBrightness / 100) * 1.50;
 
       const W = canvas.width, H = canvas.height;
       const atmo = ATMO[atmosphereMode] || ATMO.dusty;
@@ -685,6 +727,7 @@ export function createRaysEffect() {
       }
 
       // Dust and particulate. It is deterministic so browsers stay in sync.
+      // dustAmount controls density, pSizeMul/pBrightMul scale size and brightness.
       drawAtmosphericDust(
         ctx,
         sx,
@@ -699,6 +742,8 @@ export function createRaysEffect() {
         flowTime * 1.24,
         atmo,
         atmosphereMode,
+        pSizeMul,
+        pBrightMul,
       );
 
       // Micro particle layer — atmosphere-specific tiny floating specks
@@ -716,6 +761,8 @@ export function createRaysEffect() {
         flowTime * 0.86,
         atmo,
         atmosphereMode,
+        pSizeMul,
+        pBrightMul,
       );
 
       // Source glow and directional source scatter.
