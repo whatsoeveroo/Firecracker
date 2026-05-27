@@ -443,8 +443,9 @@ export const EFFECTS = [
       // STREAKS
       rayCount:       11,   streakSoftness: 42,
       occlusionGaps:  62,   noiseAmount:    72,
-      noiseScale:     52,   dustAmount:     70,
-      driftSpeed:     30,
+      noiseScale:     52,   driftSpeed:     30,
+      // PARTICLES
+      dustAmount:     70,   particleSize:   40,   particleBrightness: 50,
       // ATMOSPHERE
       atmosphereMode: 'dusty',
       // COLOR (direct 3-color system)
@@ -466,24 +467,24 @@ export const EFFECTS = [
       { key: 'beamLength',  label: 'Beam Length', min: 20, max: 120, group: 'Light Source' },
       { key: 'beamWidth',   label: 'Field Width', min: 8,  max: 100, group: 'Light Source' },
       { key: 'sourceGlow',  label: 'Source Glow', min: 0,  max: 100, group: 'Light Source' },
-      // ── VOLUME ──
-      { key: 'rayCount',       label: 'Ray Count',       min: 1,  max: 24,  group: 'Volume' },
-      { key: 'intensity',      label: 'Intensity',       min: 5,  max: 100, group: 'Volume' },
-      { key: 'softness',       label: 'Softness',        min: 0,  max: 100, group: 'Volume' },
-      { key: 'density',        label: 'Density',         min: 0,  max: 100, group: 'Volume' },
-      { key: 'falloff',        label: 'Falloff',         min: 0,  max: 100, group: 'Volume' },
-      { key: 'atmosphericHaze',label: 'Atmospheric Haze',min: 0,  max: 100, group: 'Volume' },
-      { key: 'edgeFeather',    label: 'Edge Feather',    min: 0,  max: 100, group: 'Volume' },
-      // ── STREAKS ──
-      { key: 'streakSoftness', label: 'Streak Softness', min: 0,  max: 100, group: 'Streaks', hint: 'Crisp ↔ Dreamy' },
-      { key: 'occlusionGaps',  label: 'Occlusion Gaps',  min: 0,  max: 100, group: 'Streaks' },
-      { key: 'noiseAmount',    label: 'Noise Amount',    min: 0,  max: 100, group: 'Streaks' },
-      { key: 'noiseScale',     label: 'Noise Scale',     min: 5,  max: 100, group: 'Streaks' },
-      { key: 'dustAmount',     label: 'Dust Amount',     min: 0,  max: 100, group: 'Streaks' },
-      { key: 'driftSpeed',     label: 'Particle Drift',  min: 0,  max: 100, group: 'Streaks' },
+      // ── BEAMS ──
+      { key: 'rayCount',       label: 'Ray Count',    min: 1,  max: 24,  group: 'Beams' },
+      { key: 'intensity',      label: 'Intensity',    min: 5,  max: 100, group: 'Beams' },
+      { key: 'softness',       label: 'Softness',     min: 0,  max: 100, group: 'Beams' },
+      { key: 'density',        label: 'Density',      min: 0,  max: 100, group: 'Beams' },
+      { key: 'falloff',        label: 'Falloff',      min: 0,  max: 100, group: 'Beams' },
+      { key: 'atmosphericHaze',label: 'Air Fill',     min: 0,  max: 100, group: 'Beams', hint: 'Soft glow that fills the surrounding air' },
+      { key: 'edgeFeather',    label: 'Edge Softness',min: 0,  max: 100, group: 'Beams' },
+      // ── BEAM DETAIL ──
+      { key: 'streakSoftness', label: 'Streak Softness', min: 0,  max: 100, group: 'Beam Detail', hint: 'Crisp ↔ Dreamy' },
+      { key: 'occlusionGaps',  label: 'Beam Gaps',       min: 0,  max: 100, group: 'Beam Detail', hint: 'Shadow gaps between individual rays' },
+      { key: 'noiseAmount',    label: 'Shaft Texture',   min: 0,  max: 100, group: 'Beam Detail', hint: 'Surface breakup along beam edges' },
+      { key: 'noiseScale',     label: 'Texture Scale',   min: 5,  max: 100, group: 'Beam Detail', hint: 'Size of the surface detail pattern' },
+      { key: 'driftSpeed',     label: 'Beam Flow',       min: 0,  max: 100, group: 'Beam Detail', hint: 'How fast shafts drift and flow' },
       // ── ATMOSPHERE ──
       {
         key: 'atmosphereMode', label: 'Atmosphere Type', type: 'select', group: 'Atmosphere',
+        subgroup: 'Mode',
         options: [
           { value: 'clean',      label: 'Clean Air'       },
           { value: 'dusty',      label: 'Dusty Room'      },
@@ -493,18 +494,23 @@ export const EFFECTS = [
           { value: 'misty',      label: 'Cathedral / Airy'},
         ],
       },
+      // dustAmount controls how many particles are visible (density).
+      // particleSize and particleBrightness scale the visual appearance of each particle.
+      { key: 'dustAmount',        label: 'Dust Amount',        min: 0, max: 100, default: 58, step: 1, group: 'Atmosphere', subgroup: 'Particles' },
+      { key: 'particleSize',      label: 'Particle Size',      min: 0, max: 100, default: 40, step: 1, group: 'Atmosphere', subgroup: 'Particles' },
+      { key: 'particleBrightness',label: 'Particle Brightness',min: 0, max: 100, default: 50, step: 1, group: 'Atmosphere', subgroup: 'Particles' },
       // ── COLOR ──
       { key: 'rayColor',    label: 'Ray Color',   type: 'color', group: 'Color' },
       { key: 'hazeColor',   label: 'Haze Color',  type: 'color', group: 'Color' },
       { key: 'glowColor',   label: 'Glow Color',  type: 'color', group: 'Color' },
       { key: 'colorBlend',  label: 'Color Blend', min: 0, max: 100, group: 'Color', hint: 'Mono ↔ Layered' },
       // ── ANIMATION ──
-      { key: 'motionAmount',   label: 'Motion Amount',   min: 0,  max: 100, group: 'Animation' },
-      { key: 'animationSpeed', label: 'Animation Speed', min: 0,  max: 100, group: 'Animation' },
-      { key: 'drift',          label: 'Drift',           min: 0,  max: 100, group: 'Animation' },
-      { key: 'flickerAmount',  label: 'Flicker',         min: 0,  max: 100, group: 'Animation' },
-      { key: 'breathing',      label: 'Breathing',       min: 0,  max: 100, group: 'Animation' },
-      { key: 'turbulenceSpeed',label: 'Turbulence Speed',min: 0,  max: 100, group: 'Animation' },
+      { key: 'motionAmount',   label: 'Sway',          min: 0,  max: 100, group: 'Animation', hint: 'How much the beams rock and wave' },
+      { key: 'animationSpeed', label: 'Speed',         min: 0,  max: 100, group: 'Animation' },
+      { key: 'drift',          label: 'Fan Drift',     min: 0,  max: 100, group: 'Animation', hint: 'Lateral shift of the whole ray fan' },
+      { key: 'flickerAmount',  label: 'Flicker',       min: 0,  max: 100, group: 'Animation' },
+      { key: 'breathing',      label: 'Breathing',     min: 0,  max: 100, group: 'Animation' },
+      { key: 'turbulenceSpeed',label: 'Texture Speed', min: 0,  max: 100, group: 'Animation', hint: 'How fast the surface detail evolves' },
     ],
   },
   {
