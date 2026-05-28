@@ -351,30 +351,21 @@ export const BUILT_IN_PRESETS = {
 
   smoke: [
     {
-      name: 'Thin Mist',
+      name: 'Campfire',
       params: {
-        amount: 22, scale: 90, spread: 92, verticalLift: 12, direction: 270,
-        breakup: 12, wisps: 22, turbulence: 8,  detail: 10,
-        speed: 18, drift: 8,  expansion: 30, dissipation: 14,
-        opacity: 32, softness: 92, tone: 72, temperature: 32,
+        amount: 55, scale: 58, spread: 52, verticalLift: 55, direction: 270,
+        breakup: 55, wisps: 35, turbulence: 42, detail: 38,
+        speed: 35, drift: 14, expansion: 48, dissipation: 38,
+        opacity: 62, softness: 65, tone: 42, temperature: 48,
       },
     },
     {
-      name: 'Heavy Fog',
+      name: 'Chimney',
       params: {
-        amount: 78, scale: 98, spread: 100, verticalLift: 6, direction: 270,
-        breakup: 22, wisps: 14, turbulence: 14, detail: 18,
-        speed: 14, drift: 6, expansion: 22, dissipation: 9,
-        opacity: 78, softness: 88, tone: 58, temperature: 38,
-      },
-    },
-    {
-      name: 'Smoke Puff',
-      params: {
-        amount: 48, scale: 68, spread: 55, verticalLift: 55, direction: 270,
-        breakup: 68, wisps: 38, turbulence: 48, detail: 48,
-        speed: 42, drift: 12, expansion: 58, dissipation: 52,
-        opacity: 68, softness: 62, tone: 44, temperature: 34,
+        amount: 38, scale: 28, spread: 14, verticalLift: 90, direction: 270,
+        breakup: 38, wisps: 45, turbulence: 22, detail: 22,
+        speed: 28, drift: 8, expansion: 30, dissipation: 26,
+        opacity: 58, softness: 72, tone: 35, temperature: 35,
       },
     },
     {
@@ -396,21 +387,55 @@ export const BUILT_IN_PRESETS = {
       },
     },
     {
-      name: 'Cold Breath',
+      name: 'Muzzle Smoke',
       params: {
-        amount: 18, scale: 28, spread: 32, verticalLift: 38, direction: 270,
-        breakup: 18, wisps: 48, turbulence: 18, detail: 14,
-        speed: 32, drift: 4, expansion: 52, dissipation: 88,
-        opacity: 38, softness: 88, tone: 82, temperature: 18,
+        amount: 65, scale: 35, spread: 28, verticalLift: 58, direction: 300,
+        breakup: 62, wisps: 48, turbulence: 55, detail: 42,
+        speed: 75, drift: 22, expansion: 65, dissipation: 85,
+        opacity: 58, softness: 58, tone: 38, temperature: 32,
+      },
+    },
+  ],
+
+  mist: [
+    {
+      name: 'Morning Mist',
+      params: {
+        coverage: 58, height: 22,
+        speed: 10, direction: 8,  turbulence: 8,
+        density: 28, softness: 92, tone: 80, temperature: 22,
       },
     },
     {
-      name: 'Dusty Haze',
+      name: 'Ground Fog',
       params: {
-        amount: 52, scale: 72, spread: 88, verticalLift: 18, direction: 10,
-        breakup: 48, wisps: 8, turbulence: 18, detail: 55,
-        speed: 22, drift: 32, expansion: 28, dissipation: 22,
-        opacity: 52, softness: 76, tone: 64, temperature: 72,
+        coverage: 88, height: 40,
+        speed: 16, direction: 0,  turbulence: 14,
+        density: 58, softness: 86, tone: 68, temperature: 32,
+      },
+    },
+    {
+      name: 'Creeping Fog',
+      params: {
+        coverage: 95, height: 28,
+        speed: 7,  direction: 355, turbulence: 10,
+        density: 82, softness: 90, tone: 56, temperature: 26,
+      },
+    },
+    {
+      name: 'Valley Haze',
+      params: {
+        coverage: 95, height: 58,
+        speed: 22, direction: 12, turbulence: 20,
+        density: 62, softness: 82, tone: 64, temperature: 68,
+      },
+    },
+    {
+      name: 'Sea Mist',
+      params: {
+        coverage: 80, height: 45,
+        speed: 32, direction: 350, turbulence: 38,
+        density: 45, softness: 88, tone: 74, temperature: 12,
       },
     },
   ],

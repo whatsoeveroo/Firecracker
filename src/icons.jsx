@@ -44,10 +44,17 @@ export const IconRays = (p) => (
   </Ico>
 );
 
-/* Smoke / Mist: rising asymmetric column — zigzag profile wisp */
+/* Smoke: rising asymmetric column — zigzag profile wisp */
 export const IconSmoke = (p) => (
   <Ico {...p}>
     <path d="M5 16L4 13L2 10.5L4.5 8L3 5.5L5.5 3.5L7 1.5L9 1.5L11 3.5L9.5 6L12 8.5L10 11L11.5 13L11 16Z"/>
+  </Ico>
+);
+
+/* Mist: three horizontal wavy fog bands stacked near the bottom */
+export const IconMist = (p) => (
+  <Ico {...p}>
+    <path d="M1 5Q4 2.5 8 5Q12 7.5 15 5L15 7Q12 9.5 8 7Q4 4.5 1 7ZM0 9.5Q3.5 7 8 9.5Q12.5 12 16 9.5L16 11.5Q12.5 14 8 11.5Q3.5 9 0 11.5ZM0 14Q4 11.5 8 14Q12 16.5 16 14L16 16L0 16Z"/>
   </Ico>
 );
 
@@ -96,6 +103,7 @@ export const EFFECT_ICONS = {
   glare:         IconGlare,
   rays:          IconRays,
   smoke:         IconSmoke,
+  mist:          IconMist,
   embers:        IconEmbers,
   energyPulse:   IconEnergyPulse,
   explosionRing: IconExplosionRing,

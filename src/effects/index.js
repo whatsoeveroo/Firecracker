@@ -3,6 +3,7 @@ import { createSparksEffect } from './sparks';
 import { createGlareEffect } from './glare';
 import { createRaysEffect } from './rays';
 import { createSmokeEffect } from './smoke';
+import { createMistEffect }  from './mist';
 import { createEmbersEffect } from './embers';
 import { createEnergyPulseEffect } from './energyPulse';
 import { createExplosionRingEffect } from './explosionRing';
@@ -508,7 +509,7 @@ export const EFFECTS = [
   },
   {
     id: 'smoke',
-    label: 'Smoke / Mist',
+    label: 'Smoke',
     icon: 'smoke',
     factory: createSmokeEffect,
     defaults: {
@@ -556,6 +557,40 @@ export const EFFECTS = [
       { key: 'softness',    label: 'Softness',    min: 0,  max: 100, group: 'LOOK', hint: 'Edge softness' },
       { key: 'tone',        label: 'Tone',        min: 0,  max: 100, group: 'LOOK', hint: 'Dark ← → Bright' },
       { key: 'temperature', label: 'Temperature', min: 0,  max: 100, group: 'LOOK', hint: 'Cool mist ← → Warm smoke' },
+    ],
+  },
+  {
+    id: 'mist',
+    label: 'Mist',
+    icon: 'mist',
+    factory: createMistEffect,
+    defaults: {
+      // Shape
+      coverage:    75,
+      height:      35,
+      // Motion
+      speed:       18,
+      direction:   0,
+      turbulence:  14,
+      // Look
+      density:     60,
+      softness:    82,
+      tone:        66,
+      temperature: 28,
+    },
+    params: [
+      // ── SHAPE ──
+      { key: 'coverage',    label: 'Coverage',    min: 5,  max: 100, group: 'SHAPE', hint: 'Horizontal spread' },
+      { key: 'height',      label: 'Height',      min: 5,  max: 100, group: 'SHAPE', hint: 'How high the mist rises' },
+      // ── MOTION ──
+      { key: 'speed',       label: 'Speed',       min: 0,  max: 100, group: 'MOTION', hint: 'Drift speed' },
+      { key: 'direction',   label: 'Direction',   min: 0,  max: 360, group: 'MOTION', hint: '0=Right · 90=Down · 180=Left · 270=Up' },
+      { key: 'turbulence',  label: 'Turbulence',  min: 0,  max: 100, group: 'MOTION', hint: 'Undulation and rolling' },
+      // ── LOOK ──
+      { key: 'density',     label: 'Density',     min: 5,  max: 100, group: 'LOOK', hint: 'Thickness / opacity' },
+      { key: 'softness',    label: 'Softness',    min: 0,  max: 100, group: 'LOOK', hint: 'Edge feathering' },
+      { key: 'tone',        label: 'Tone',        min: 0,  max: 100, group: 'LOOK', hint: 'Dark fog ← → Bright mist' },
+      { key: 'temperature', label: 'Temperature', min: 0,  max: 100, group: 'LOOK', hint: 'Cool blue ← → Warm haze' },
     ],
   },
   {
