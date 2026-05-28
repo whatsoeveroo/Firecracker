@@ -512,20 +512,50 @@ export const EFFECTS = [
     icon: 'smoke',
     factory: createSmokeEffect,
     defaults: {
-      density:    40,
-      spread:     60,
-      softness:   70,
-      speed:      40,
-      opacity:    60,
-      turbulence: 30,
+      // Shape
+      amount:       50,
+      scale:        62,
+      spread:       60,
+      verticalLift: 45,
+      direction:    270,
+      // Texture
+      breakup:      42,
+      wisps:        30,
+      turbulence:   28,
+      detail:       25,
+      // Motion
+      speed:        38,
+      drift:        18,
+      expansion:    42,
+      dissipation:  32,
+      // Look
+      opacity:      62,
+      softness:     68,
+      tone:         54,
+      temperature:  38,
     },
     params: [
-      { key: 'density',    label: 'Density',    min: 5,  max: 100 },
-      { key: 'spread',     label: 'Spread',     min: 10, max: 100 },
-      { key: 'softness',   label: 'Softness',   min: 0,  max: 100 },
-      { key: 'speed',      label: 'Speed',      min: 5,  max: 100 },
-      { key: 'opacity',    label: 'Opacity',    min: 5,  max: 100 },
-      { key: 'turbulence', label: 'Turbulence', min: 0,  max: 100, hint: 'Curl' },
+      // ── SHAPE ──
+      { key: 'amount',       label: 'Amount',        min: 5,   max: 100, group: 'SHAPE', hint: 'Overall smoke quantity' },
+      { key: 'scale',        label: 'Scale',         min: 10,  max: 100, group: 'SHAPE', hint: 'Particle size' },
+      { key: 'spread',       label: 'Spread',        min: 5,   max: 100, group: 'SHAPE', hint: 'Outward expansion' },
+      { key: 'verticalLift', label: 'Vertical Lift', min: 0,   max: 100, group: 'SHAPE', hint: 'Upward rise force' },
+      { key: 'direction',    label: 'Drift Angle',   min: 0,   max: 360, group: 'SHAPE', hint: '0/360=R · 90=Down · 180=L · 270=Up' },
+      // ── TEXTURE ──
+      { key: 'breakup',     label: 'Breakup',     min: 0, max: 100, group: 'TEXTURE', hint: 'Holes and density variation' },
+      { key: 'wisps',       label: 'Wisps',       min: 0, max: 100, group: 'TEXTURE', hint: 'Edge tendrils' },
+      { key: 'turbulence',  label: 'Turbulence',  min: 0, max: 100, group: 'TEXTURE', hint: 'Rolling curl distortion' },
+      { key: 'detail',      label: 'Detail',      min: 0, max: 100, group: 'TEXTURE', hint: 'Fine internal noise' },
+      // ── MOTION ──
+      { key: 'speed',       label: 'Speed',       min: 5,  max: 100, group: 'MOTION' },
+      { key: 'drift',       label: 'Drift',       min: 0,  max: 100, group: 'MOTION', hint: 'Directional movement' },
+      { key: 'expansion',   label: 'Expansion',   min: 0,  max: 100, group: 'MOTION', hint: 'Growth rate' },
+      { key: 'dissipation', label: 'Dissipation', min: 0,  max: 100, group: 'MOTION', hint: 'Fade speed' },
+      // ── LOOK ──
+      { key: 'opacity',     label: 'Opacity',     min: 5,  max: 100, group: 'LOOK' },
+      { key: 'softness',    label: 'Softness',    min: 0,  max: 100, group: 'LOOK', hint: 'Edge softness' },
+      { key: 'tone',        label: 'Tone',        min: 0,  max: 100, group: 'LOOK', hint: 'Dark ← → Bright' },
+      { key: 'temperature', label: 'Temperature', min: 0,  max: 100, group: 'LOOK', hint: 'Cool mist ← → Warm smoke' },
     ],
   },
   {

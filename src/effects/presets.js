@@ -351,20 +351,67 @@ export const BUILT_IN_PRESETS = {
 
   smoke: [
     {
-      name: 'Heavy Fog',
-      params: { density: 75, spread: 90, softness: 88, speed: 18, opacity: 82, turbulence: 20 },
+      name: 'Thin Mist',
+      params: {
+        amount: 22, scale: 90, spread: 92, verticalLift: 12, direction: 270,
+        breakup: 12, wisps: 22, turbulence: 8,  detail: 10,
+        speed: 18, drift: 8,  expansion: 30, dissipation: 14,
+        opacity: 32, softness: 92, tone: 72, temperature: 32,
+      },
     },
     {
-      name: 'Thin Mist',
-      params: { density: 22, spread: 100, softness: 95, speed: 25, opacity: 45, turbulence: 10 },
+      name: 'Heavy Fog',
+      params: {
+        amount: 78, scale: 98, spread: 100, verticalLift: 6, direction: 270,
+        breakup: 22, wisps: 14, turbulence: 14, detail: 18,
+        speed: 14, drift: 6, expansion: 22, dissipation: 9,
+        opacity: 78, softness: 88, tone: 58, temperature: 38,
+      },
+    },
+    {
+      name: 'Smoke Puff',
+      params: {
+        amount: 48, scale: 68, spread: 55, verticalLift: 55, direction: 270,
+        breakup: 68, wisps: 38, turbulence: 48, detail: 48,
+        speed: 42, drift: 12, expansion: 58, dissipation: 52,
+        opacity: 68, softness: 62, tone: 44, temperature: 34,
+      },
     },
     {
       name: 'Smoke Trail',
-      params: { density: 40, spread: 30, softness: 70, speed: 55, opacity: 65, turbulence: 35 },
+      params: {
+        amount: 36, scale: 42, spread: 22, verticalLift: 42, direction: 10,
+        breakup: 52, wisps: 58, turbulence: 58, detail: 38,
+        speed: 58, drift: 68, expansion: 46, dissipation: 68,
+        opacity: 55, softness: 72, tone: 38, temperature: 28,
+      },
     },
     {
       name: 'Steam Vent',
-      params: { density: 55, spread: 20, softness: 60, speed: 80, opacity: 55, turbulence: 55 },
+      params: {
+        amount: 58, scale: 32, spread: 18, verticalLift: 94, direction: 270,
+        breakup: 28, wisps: 68, turbulence: 52, detail: 28,
+        speed: 78, drift: 4, expansion: 62, dissipation: 78,
+        opacity: 48, softness: 78, tone: 80, temperature: 60,
+      },
+    },
+    {
+      name: 'Cold Breath',
+      params: {
+        amount: 18, scale: 28, spread: 32, verticalLift: 38, direction: 270,
+        breakup: 18, wisps: 48, turbulence: 18, detail: 14,
+        speed: 32, drift: 4, expansion: 52, dissipation: 88,
+        opacity: 38, softness: 88, tone: 82, temperature: 18,
+      },
+    },
+    {
+      name: 'Dusty Haze',
+      params: {
+        amount: 52, scale: 72, spread: 88, verticalLift: 18, direction: 10,
+        breakup: 48, wisps: 8, turbulence: 18, detail: 55,
+        speed: 22, drift: 32, expansion: 28, dissipation: 22,
+        opacity: 52, softness: 76, tone: 64, temperature: 72,
+      },
     },
   ],
 
