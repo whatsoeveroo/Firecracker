@@ -38,6 +38,7 @@ export function createEnergyPulseEffect() {
   let waves = [];        // { r, v, age, delay, seed, gain }
   let motes = [];        // { ang, r, om, tw, size, kick, heat, wob }
   let sparks = [];       // { x, y, vx, vy, life, maxLife, w }
+  let burstRays = [];    // { ang, len, bend, w, life, maxLife, hotMix }
   let cycleT = 0;        // time since last emission
   let flashE = 0;        // emission flash energy, decays exponentially
   let time = 0;
@@ -56,6 +57,20 @@ export function createEnergyPulseEffect() {
       });
     }
     flashE = P.flash;
+
+    // burst filaments — thin light lines that snap out and die in ~0.1–0.3s
+    const rayN = Math.round(6 + P.sparkAmt * 14 + P.flash * 10);
+    for (let i = 0; i < rayN; i++) {
+      burstRays.push({
+        ang: Math.random() * Math.PI * 2,
+        len: maxR * (0.14 + Math.random() * 0.42) * (0.45 + P.flash * 0.75),
+        bend: (Math.random() - 0.5) * 0.5,
+        w: 0.6 + Math.random() * 2.0,
+        life: 0,
+        maxLife: 0.14 + Math.random() * 0.24,
+        hotMix: 0.35 + Math.random() * 0.6,
+      });
+    }
 
     const n = Math.round(P.sparkAmt * 26);
     for (let i = 0; i < n; i++) {
@@ -92,6 +107,7 @@ export function createEnergyPulseEffect() {
       waves = [];
       motes = [];
       sparks = [];
+      burstRays = [];
       cycleT = 0;
       flashE = 0;
       time = 0;
@@ -195,6 +211,13 @@ export function createEnergyPulseEffect() {
           Object.assign(m, spawnMote(maxR, coreR));
           m.r = coreR * 1.4 + Math.random() * maxR * 0.3;
         }
+      }
+
+      // ── update burst rays ──
+      for (let i = burstRays.length - 1; i >= 0; i--) {
+        const ry = burstRays[i];
+        ry.life += dt;
+        if (ry.life >= ry.maxLife) burstRays.splice(i, 1);
       }
 
       // ── update sparks ──
@@ -349,6 +372,40 @@ export function createEnergyPulseEffect() {
         ctx.beginPath();
         ctx.arc(px, py, sz * 5, 0, Math.PI * 2);
         ctx.fill();
+      }
+
+      // burst filaments — bent tapered light lines, alive for a blink at release
+      for (const ry of burstRays) {
+        const p = ry.life / ry.maxLife;
+        const ease = 1 - Math.pow(1 - p, 3); // fast snap out
+        const fade = Math.pow(1 - p, 1.7) * intensity * (0.55 + P.flash * 0.8);
+        if (fade <= 0.01) continue;
+
+        const base = coreR * (1.1 + ease * 0.8) + ease * ry.len * 0.35;
+        const tip  = coreR * 1.4 + ease * ry.len;
+        if (tip - base < 2) continue;
+
+        const bx = cx + Math.cos(ry.ang) * base, by = cy + Math.sin(ry.ang) * base;
+        const tx = cx + Math.cos(ry.ang) * tip,  ty = cy + Math.sin(ry.ang) * tip;
+        // control point offset perpendicular to the ray — slight organic bend
+        const mid = (base + tip) * 0.5, bendOff = ry.bend * (tip - base) * 0.4;
+        const mx = cx + Math.cos(ry.ang) * mid - Math.sin(ry.ang) * bendOff;
+        const my = cy + Math.sin(ry.ang) * mid + Math.cos(ry.ang) * bendOff;
+
+        const rayCol = mix(main, WHITE, ry.hotMix);
+        const g = ctx.createLinearGradient(bx, by, tx, ty);
+        g.addColorStop(0, rgba(rayCol, 0));
+        g.addColorStop(0.3, rgba(rayCol, fade));
+        g.addColorStop(0.85, rgba(rayCol, fade * 0.55));
+        g.addColorStop(1, rgba(rayCol, 0));
+
+        ctx.lineWidth = ry.w * 3.2;
+        ctx.strokeStyle = rgba(main, fade * 0.22);
+        ctx.beginPath(); ctx.moveTo(bx, by); ctx.quadraticCurveTo(mx, my, tx, ty); ctx.stroke();
+
+        ctx.lineWidth = ry.w;
+        ctx.strokeStyle = g;
+        ctx.beginPath(); ctx.moveTo(bx, by); ctx.quadraticCurveTo(mx, my, tx, ty); ctx.stroke();
       }
 
       // emission sparks — short streaks along their velocity
