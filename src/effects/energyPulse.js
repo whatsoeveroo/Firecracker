@@ -170,17 +170,34 @@ export function createEnergyPulseEffect() {
   }
 
   // ── persistent blast-style structures ────────────────────────────────
-  function buildOrbStrands(n) {
-    return Array.from({ length: n }, () => ({
-      a0:   Math.random() * Math.PI * 2,
-      span: 0.7 + Math.random() * 1.8,            // arc length on the shell (rad)
-      drift:(Math.random() - 0.5) * 0.30,          // slow rotation
+
+  // one filament "configuration" — plasma snaps between these, it doesn't morph
+  function tendrilShape() {
+    return {
       ph:   Math.random() * Math.PI * 2,
-      spd:  0.6 + Math.random() * 1.6,             // noise crawl speed
-      amp:  0.05 + Math.random() * 0.10,           // wobble, fraction of shell R
-      w:    0.7 + Math.random() * 1.6,
-      hm:   Math.random() * 0.55,
-    }));
+      ph2:  Math.random() * Math.PI * 2,
+      ampM: 0.75 + Math.random() * 0.6,
+      angJ: (Math.random() - 0.5) * 0.18,
+    };
+  }
+
+  function buildOrbStrands(n) {
+    return Array.from({ length: n }, () => {
+      const ph = Math.random() * Math.PI * 2;
+      return {
+        a0:   Math.random() * Math.PI * 2,
+        span: 0.7 + Math.random() * 1.8,          // arc length on the shell (rad)
+        drift:(Math.random() - 0.5) * 0.30,        // slow rotation
+        ph,
+        phT:  ph,                                  // re-strike target phase
+        spd:  0.6 + Math.random() * 1.6,           // noise crawl speed
+        amp:  0.05 + Math.random() * 0.10,         // wobble, fraction of shell R
+        w:    0.7 + Math.random() * 1.6,
+        hm:   Math.random() * 0.55,
+        glow: 0.4 + Math.random() * 0.4,           // crackling brightness state
+        hold: Math.random() * 0.25,                // time until next restructure
+      };
+    });
   }
 
   function buildTendrils(n, branchAmt = 0.45) {
@@ -188,6 +205,7 @@ export function createEnergyPulseEffect() {
       const w = 0.7 + Math.random() * 1.7;
       const nBranches = Math.random() < branchAmt
         ? 1 + (Math.random() < branchAmt * 0.6 ? 1 : 0) : 0;
+      const shape = tendrilShape();
       return {
         ang:  Math.random() * Math.PI * 2,
         lenF: 0.55 + Math.random() * 0.45,         // fraction of maxR
@@ -198,6 +216,11 @@ export function createEnergyPulseEffect() {
         w,
         hm:   0.15 + Math.random() * 0.5,
         pulses: [],                                 // traveling highlights {d}
+        shapeCur: shape,                            // restructuring states
+        shapePrev: shape,
+        blend: 1,                                   // 0→1 snap between shapes
+        hold: Math.random() * 0.2,                  // time until next restructure
+        glow: 0.4 + Math.random() * 0.4,            // crackling brightness
         branches: Array.from({ length: nBranches }, () => ({
           at:     0.25 + Math.random() * 0.50,     // fork point along the parent
           angOff: (Math.random() < 0.5 ? -1 : 1) * (0.35 + Math.random() * 0.55),
@@ -221,6 +244,8 @@ export function createEnergyPulseEffect() {
         tw:   Math.random() * Math.PI * 2,
         hm:   0.3 + Math.random() * 0.6,
         drift:(Math.random() - 0.5) * 0.05,
+        glow: 0.3 + Math.random() * 0.4,
+        hold: Math.random() * 0.3,
       };
     });
   }
@@ -452,6 +477,49 @@ export function createEnergyPulseEffect() {
           t.pulses[i].d += dt * 1.1;
           if (t.pulses[i].d > 1.25) t.pulses.splice(i, 1);
         }
+      }
+
+      // ── plasma restructuring: filaments hold a configuration briefly,
+      // then SNAP to a new one; brightness crackles with stochastic spikes
+      // instead of smooth sine flicker — this is what makes the energy
+      // tension visible
+      for (const t of tendrils) {
+        t.hold -= dt;
+        if (t.hold <= 0) {
+          t.shapePrev = t.shapeCur;
+          t.shapeCur = tendrilShape();
+          t.blend = 0;
+          t.hold = 0.05 + Math.random() * 0.22;
+          if (Math.random() < 0.35) t.glow = Math.max(t.glow, 0.8 + Math.random() * 0.5);
+          if (Math.random() < 0.10) {
+            // full re-strike: the filament dies and re-roots at a new angle
+            t.ang += (Math.random() - 0.5) * 0.8;
+            t.glow = 1.3;
+            for (const br of t.branches) br.ph = Math.random() * Math.PI * 2;
+          }
+        }
+        t.blend = Math.min(1, t.blend + dt * 16);  // ~60ms snap
+        if (Math.random() < dt * 2.0) t.glow = Math.max(t.glow, 0.7 + Math.random() * 0.5);
+        t.glow = 0.35 + (t.glow - 0.35) * Math.exp(-6.5 * dt);
+      }
+      for (const st of orbStrands) {
+        st.hold -= dt;
+        if (st.hold <= 0) {
+          st.hold = 0.06 + Math.random() * 0.22;
+          st.phT = st.ph + (Math.random() - 0.5) * 2.6;
+          if (Math.random() < 0.28) st.glow = Math.max(st.glow, 0.9 + Math.random() * 0.4);
+          if (Math.random() < 0.08) st.a0 += (Math.random() - 0.5) * 0.5;
+        }
+        st.ph += (st.phT - st.ph) * (1 - Math.exp(-13 * dt));
+        st.glow = 0.4 + (st.glow - 0.4) * Math.exp(-6.5 * dt);
+      }
+      for (const sr of starRays) {
+        sr.hold -= dt;
+        if (sr.hold <= 0) {
+          sr.hold = 0.05 + Math.random() * 0.25;
+          if (Math.random() < 0.5) sr.glow = Math.max(sr.glow, 0.6 + Math.random() * 0.7);
+        }
+        sr.glow = 0.28 + (sr.glow - 0.28) * Math.exp(-8 * dt);
       }
       for (let i = blastParts.length - 1; i >= 0; i--) {
         const bp = blastParts[i];
@@ -686,7 +754,7 @@ export function createEnergyPulseEffect() {
         const subStrands = quality === 'draft' ? 1 : 2;
         for (const st of orbStrands) {
           const a0 = st.a0 + time * st.drift;
-          const baseA = intensity * (0.16 + 0.16 * Math.sin(time * st.spd + st.ph))
+          const baseA = intensity * (0.10 + 0.26 * st.glow)
             * (1 + charge * 0.6 + flashE * 1.6) * strandGain;
           if (baseA <= 0.01) continue;
 
@@ -765,16 +833,22 @@ export function createEnergyPulseEffect() {
 
         for (const t of tendrils) {
           const len = t.lenF * maxR;
-          const flick = 0.55 + 0.45 * Math.sin(time * 1.8 + t.ph * 3.1);
-          const baseA = intensity * (0.10 + 0.22 * flick)
+          const baseA = intensity * (0.08 + 0.30 * t.glow)
             * (1 + charge * 0.5 + flashE * 1.2) * tendrilGain;
           if (baseA <= 0.01) continue;
-          const dx = Math.cos(t.ang), dy = Math.sin(t.ang);
+          // eased snap between the previous and current configuration
+          const eb = t.blend * t.blend * (3 - 2 * t.blend);
+          const angEff = t.ang + t.shapePrev.angJ + (t.shapeCur.angJ - t.shapePrev.angJ) * eb;
+          const dx = Math.cos(angEff), dy = Math.sin(angEff);
 
-          const sway = f => len * t.amp * Math.pow(f, 0.8) * (
-            0.6 * Math.sin(f * t.freq * 6.28 + t.ph + time * t.spd) +
-            0.35 * Math.sin(f * t.freq * 9.0 - time * t.spd * 0.7 + t.ph * 1.7)
+          const shapeSway = (f, sh) => len * t.amp * sh.ampM * Math.pow(f, 0.8) * (
+            0.6 * Math.sin(f * t.freq * 6.28 + sh.ph + time * t.spd * 0.3) +
+            0.35 * Math.sin(f * t.freq * 9.0 + sh.ph2 - time * t.spd * 0.2)
           );
+          const sway = f =>
+            shapeSway(f, t.shapePrev) + (shapeSway(f, t.shapeCur) - shapeSway(f, t.shapePrev)) * eb
+            // high-frequency micro-jitter: the filament visibly vibrates
+            + len * 0.014 * Math.pow(f, 0.9) * Math.sin(f * 23 + time * 26 + t.ph * 7);
           const parentPt = (f, braidPh, braidAmp) => {
             const r = coreR * 0.8 + f * len;
             let s = sway(f);
@@ -850,8 +924,7 @@ export function createEnergyPulseEffect() {
         const rayGain = P.style === 'starburst' ? 1 : 0.35;
         ctx.lineCap = 'round';
         for (const sr of starRays) {
-          const flick = 0.5 + 0.5 * Math.sin(time * 5.5 + sr.tw) * Math.sin(time * 1.7 + sr.tw * 2.3);
-          const a = intensity * (0.07 + 0.18 * flick)
+          const a = intensity * (0.05 + 0.22 * sr.glow)
             * (1 + charge * 0.7 + flashE * 2.4) * rayGain;
           if (a <= 0.01) continue;
           const ang = sr.ang + time * sr.drift;
