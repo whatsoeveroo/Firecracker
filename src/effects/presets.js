@@ -468,12 +468,59 @@ export const BUILT_IN_PRESETS = {
 
   energyPulse: [
     {
-      name: 'Energy Burst',
-      params: { speed: 72, radius: 280, thickness: 10, color: '#00e5ff', intensity: 88 },
+      // Fast hard-hitting sci-fi blast — single front, big flash, heavy distortion
+      name: 'Sci-Fi Shockwave',
+      params: {
+        intensity: 92, rate: 30, waveCount: 1, chargeUp: 40, flash: 90,
+        speed: 85, range: 95, thickness: 10, deceleration: 70, sharpness: 85, afterglow: 55,
+        distortion: 45, breakup: 35, shimmer: 30, motes: 35, sparks: 80,
+        color: '#3dc8ff', coreColor: '#eaffff', edgeHeat: 85, haze: 40,
+        posX: 50, posY: 50, coreSize: 45,
+      },
     },
     {
-      name: 'Radar Pulse',
-      params: { speed: 28, radius: 350, thickness: 3, color: '#00ff88', intensity: 55 },
+      // Slow dramatic build-up, long charge, triple release — reactor going critical
+      name: 'Reactor Charge',
+      params: {
+        intensity: 88, rate: 14, waveCount: 3, chargeUp: 95, flash: 80,
+        speed: 45, range: 85, thickness: 8, deceleration: 40, sharpness: 55, afterglow: 70,
+        distortion: 25, breakup: 15, shimmer: 55, motes: 75, sparks: 55,
+        color: '#22ccff', coreColor: '#d8fbff', edgeHeat: 60, haze: 55,
+        posX: 50, posY: 50, coreSize: 55,
+      },
+    },
+    {
+      // Violent violet EMP — ragged, breaking apart, electric shimmer
+      name: 'EMP Blast',
+      params: {
+        intensity: 95, rate: 22, waveCount: 2, chargeUp: 60, flash: 100,
+        speed: 75, range: 100, thickness: 6, deceleration: 55, sharpness: 70, afterglow: 40,
+        distortion: 70, breakup: 65, shimmer: 80, motes: 50, sparks: 70,
+        color: '#9a5cff', coreColor: '#f2eaff', edgeHeat: 75, haze: 30,
+        posX: 50, posY: 50, coreSize: 40,
+      },
+    },
+    {
+      // Clean thin sweep — no charge drama, steady cadence, instrument look
+      name: 'Radar Sweep',
+      params: {
+        intensity: 60, rate: 55, waveCount: 1, chargeUp: 0, flash: 12,
+        speed: 35, range: 100, thickness: 3, deceleration: 0, sharpness: 90, afterglow: 15,
+        distortion: 0, breakup: 0, shimmer: 8, motes: 12, sparks: 0,
+        color: '#00ff88', coreColor: '#ccffe8', edgeHeat: 30, haze: 12,
+        posX: 50, posY: 50, coreSize: 25,
+      },
+    },
+    {
+      // Soft golden ripple — gentle, glowing trails, floating motes
+      name: 'Mystic Ripple',
+      params: {
+        intensity: 75, rate: 26, waveCount: 2, chargeUp: 70, flash: 35,
+        speed: 28, range: 75, thickness: 9, deceleration: 30, sharpness: 25, afterglow: 90,
+        distortion: 35, breakup: 20, shimmer: 45, motes: 90, sparks: 25,
+        color: '#ffc04d', coreColor: '#fff3d6', edgeHeat: 40, haze: 60,
+        posX: 50, posY: 50, coreSize: 50,
+      },
     },
   ],
 
