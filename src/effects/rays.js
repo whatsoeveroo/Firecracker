@@ -31,178 +31,412 @@ function fbm(x, y, seed = 0, octaves = 4) {
   return v / norm;
 }
 
-// ─── color ────────────────────────────────────────────────────────────────────
+// ─── color ───────────────────────────────────────────────────────────────────
 
 function hexToRgb(hex = '#ffffff') {
   const h = hex.replace('#', '');
-  return { r: parseInt(h.slice(0,2),16), g: parseInt(h.slice(2,4),16), b: parseInt(h.slice(4,6),16) };
+  return {
+    r: parseInt(h.slice(0, 2), 16),
+    g: parseInt(h.slice(2, 4), 16),
+    b: parseInt(h.slice(4, 6), 16),
+  };
 }
 
 function mixRgb(a, b, t) {
-  return { r: lerp(a.r,b.r,t), g: lerp(a.g,b.g,t), b: lerp(a.b,b.b,t) };
+  return { r: lerp(a.r, b.r, t), g: lerp(a.g, b.g, t), b: lerp(a.b, b.b, t) };
 }
 
 function rgba(rgb, a) {
   return `rgba(${Math.round(rgb.r)},${Math.round(rgb.g)},${Math.round(rgb.b)},${clamp(a).toFixed(4)})`;
 }
 
-// ─── atmosphere mode presets ──────────────────────────────────────────────────
-// Each mode multiplies base param values to produce distinct physical behavior.
-// hazeMul:   atmospheric volume density
-// dustMul:   particle count
-// softMul:   global diffusion softness
-// strkMul:   streak layer blur scale (controls streak crispness for this mode)
-// noiseMul:  FBM modulation depth
-// occMul:    occlusion gap strength
-// driftMul:  atmospheric drift speed
-// motionMul: overall motion magnitude
+// ─── atmosphere behavior ──────────────────────────────────────────────────────
 
 const ATMO = {
-  clean:      { hazeMul:0.32, dustMul:0.14, softMul:0.68, strkMul:0.58, noiseMul:0.52, occMul:0.32, driftMul:0.45, motionMul:0.50 },
-  dusty:      { hazeMul:0.82, dustMul:1.50, softMul:0.98, strkMul:1.00, noiseMul:0.86, occMul:0.78, driftMul:0.92, motionMul:0.80 },
-  foggy:      { hazeMul:1.60, dustMul:0.28, softMul:1.60, strkMul:1.48, noiseMul:0.48, occMul:0.25, driftMul:0.62, motionMul:0.52 },
-  smoky:      { hazeMul:1.28, dustMul:1.25, softMul:1.18, strkMul:1.22, noiseMul:1.38, occMul:1.50, driftMul:1.18, motionMul:0.95 },
-  underwater: { hazeMul:1.90, dustMul:1.65, softMul:1.68, strkMul:1.60, noiseMul:0.88, occMul:0.42, driftMul:1.88, motionMul:1.58 },
-  misty:      { hazeMul:1.05, dustMul:0.52, softMul:1.28, strkMul:1.15, noiseMul:0.65, occMul:0.38, driftMul:1.05, motionMul:0.80 },
+  clean:      { haze:0.30, dust:0.16, soft:0.72, noise:0.46, occ:0.30, motion:0.46, flow:0.25, width:0.78, halo:0.58, cool:0.00 },
+  dusty:      { haze:0.86, dust:1.40, soft:0.96, noise:0.90, occ:0.74, motion:0.78, flow:0.82, width:1.00, halo:0.88, cool:0.00 },
+  foggy:      { haze:1.45, dust:0.38, soft:1.42, noise:0.58, occ:0.36, motion:0.54, flow:0.52, width:1.34, halo:1.22, cool:0.08 },
+  smoky:      { haze:1.18, dust:1.18, soft:1.10, noise:1.18, occ:1.22, motion:0.92, flow:1.00, width:1.12, halo:1.02, cool:0.03 },
+  underwater: { haze:1.75, dust:1.55, soft:1.48, noise:0.70, occ:0.42, motion:1.35, flow:1.62, width:1.52, halo:1.34, cool:0.30 },
+  misty:      { haze:1.02, dust:0.55, soft:1.18, noise:0.62, occ:0.42, motion:0.72, flow:0.62, width:1.10, halo:1.05, cool:0.02 },
 };
 
-// ─── offscreen canvas ─────────────────────────────────────────────────────────
+// ─── micro particle controller ───────────────────────────────────────────────
+// Per-atmosphere config: count, size (px base), speed, rise (neg=up, pos=down),
+// spread (lateral fieldW multiplier), tint (0=rayRgb, 1=glowRgb), opacity.
 
-function ensureLayer(layer, w, h) {
-  const tw = Math.max(1, Math.floor(w)), th = Math.max(1, Math.floor(h));
+const MICRO = {
+  //             count  size   speed   rise    spread  tint   opacity
+  // NOTE: size values deliberately small — feel like suspended dust/mist particulates,
+  // not oversized glowing blobs. User-facing particleSize param multiplies these at draw time.
+  clean:      {  count: 22,  size: 0.85, speed: 0.12, rise: -0.014, spread: 1.05, tint: 0.70, opacity: 0.80 },
+  dusty:      {  count: 58,  size: 1.35, speed: 0.22, rise:  0.028, spread: 0.92, tint: 0.25, opacity: 0.88 },
+  foggy:      {  count: 82,  size: 0.58, speed: 0.06, rise:  0.006, spread: 1.40, tint: 0.82, opacity: 0.65 },
+  smoky:      {  count: 50,  size: 1.10, speed: 0.30, rise: -0.042, spread: 0.88, tint: 0.16, opacity: 0.75 },
+  underwater: {  count: 44,  size: 1.60, speed: 0.18, rise: -0.065, spread: 0.82, tint: 0.90, opacity: 0.90 },
+  misty:      {  count: 76,  size: 0.50, speed: 0.08, rise:  0.010, spread: 1.28, tint: 0.78, opacity: 0.60 },
+};
+
+// ─── offscreen ────────────────────────────────────────────────────────────────
+
+function ensureCanvas(layer, w, h) {
   if (!layer.canvas) {
     layer.canvas = document.createElement('canvas');
-    layer.ctx    = layer.canvas.getContext('2d');
+    layer.ctx = layer.canvas.getContext('2d');
   }
-  if (layer.canvas.width !== tw || layer.canvas.height !== th) {
-    layer.canvas.width = tw; layer.canvas.height = th;
+  if (layer.canvas.width !== w || layer.canvas.height !== h) {
+    layer.canvas.width = w;
+    layer.canvas.height = h;
   }
-  layer.ctx.setTransform(1,0,0,1,0,0);
-  layer.ctx.clearRect(0, 0, tw, th);
-  return layer;
+  layer.ctx.setTransform(1, 0, 0, 1, 0, 0);
+  layer.ctx.globalAlpha = 1;
+  layer.ctx.globalCompositeOperation = 'source-over';
+  layer.ctx.shadowBlur = 0;
+  layer.ctx.shadowColor = 'rgba(0,0,0,0)';
+  layer.ctx.clearRect(0, 0, w, h);
+  return layer.ctx;
 }
 
-// ─── shaft seed ───────────────────────────────────────────────────────────────
+// ─── seeds ───────────────────────────────────────────────────────────────────
 
 function makeShaftSeed(i) {
   return {
-    lengthMul:   0.54 + hash(i, i*3.17,  2) * 0.64,  // shaft length variation: 0.54–1.18×
-    widthMul:    0.48 + hash(i, i*7.43,  5) * 1.02,  // width multiplier
-    intensity:   0.42 + hash(i, i*13.1,  8) * 0.86,  // per-shaft brightness
-    phase:       hash(i, i*44.8, 14) * Math.PI * 2,  // FBM phase offset
-    clusterBias: hash(i, i*2.09, 11),                 // for cluster assignment
+    length:    0.62 + hash(i, i * 3.17, 2) * 0.46,
+    width:     0.58 + hash(i, i * 7.43, 5) * 1.05,
+    intensity: 0.44 + hash(i, i * 13.1, 8) * 0.72,
+    phase:     hash(i, i * 44.8, 14) * Math.PI * 2,
+    bias:      hash(i, i * 2.09, 11) - 0.5,
+    slot:      hash(i, i * 5.31, 19) - 0.5,
   };
 }
 
-function makeAreaSeed(i) {
+function makeParticleSeed(i) {
   return {
-    slotJitter: hash(i, i * 4.11, 101) - 0.5,
-    widthMul:  0.74 + hash(i, i * 8.23, 103) * 0.92,
-    lengthMul: 0.70 + hash(i, i * 5.37, 107) * 0.44,
-    intensity: 0.38 + hash(i, i * 9.71, 109) * 0.78,
-    phase:     hash(i, i * 2.61, 113) * Math.PI * 2,
-    sideBias:  hash(i, i * 6.89, 127) - 0.5,
-    edgeSkew:  (hash(i, i * 3.31, 131) - 0.5) * 0.9,
-    breath:    0.55 + hash(i, i * 7.77, 137) * 0.75,
+    angle: hash(i, i * 2.11, 41) - 0.5,
+    dist:  Math.pow(hash(i, i * 3.17, 43), 0.56),
+    side:  hash(i, i * 4.97, 47) - 0.5,
+    size:  hash(i, i * 8.23, 53),
+    speed: hash(i, i * 6.71, 59),
+    phase: hash(i, i * 9.43, 61) * Math.PI * 2,
+    type:  hash(i, i * 1.83, 67),
   };
 }
 
-// ─── elongated section drawing ────────────────────────────────────────────────
-// Draw one shaft section as an ellipse stretched along the beam direction.
-// This eliminates circular blob artifacts — the section's shape is naturally
-// elongated (like a streak) rather than circular.
-//
-// Implementation: translate to section mid-point, rotate to shaft angle, scale
-// x-axis by the section's length-to-width ratio. The radial gradient drawn in
-// this stretched space appears as an ellipse in world space.
+// ─── drawing helpers ──────────────────────────────────────────────────────────
 
-function drawSection(c, sx, sy, angle, t0, t1, len, width, rgb, alpha) {
-  const tm     = (t0 + t1) * 0.5;
-  const secLen = (t1 - t0) * len;
-  const tapW   = width * Math.pow(tm, 0.46) * (1 - tm * 0.24);
-  if (tapW < 0.6 || secLen < 0.6 || alpha < 0.002) return;
-
-  const cx = sx + Math.cos(angle) * tm * len;
-  const cy = sy + Math.sin(angle) * tm * len;
-
-  c.save();
-  c.translate(cx, cy);
-  c.rotate(angle);
-  // Stretch x (along shaft) so the circle becomes an elongated ellipse
-  const stretch = Math.min(14, (secLen * 0.54) / Math.max(tapW, 0.5));
-  c.scale(stretch, 1);
-
-  const g = c.createRadialGradient(0, 0, 0, 0, 0, tapW);
-  g.addColorStop(0,    rgba(rgb, alpha));
-  g.addColorStop(0.42, rgba(rgb, alpha * 0.52));
-  g.addColorStop(1,    'rgba(0,0,0,0)');
-  c.fillStyle = g;
-  c.beginPath();
-  c.arc(0, 0, tapW, 0, Math.PI * 2);
-  c.fill();
-  c.restore();
-}
-
-function drawSoftBeamSegment(c, sx, sy, angle, t0, t1, len, width, rgb, alpha, stretchMul = 0.78, core = 0.42) {
-  const tm = (t0 + t1) * 0.5;
-  const secLen = (t1 - t0) * len;
-  if (alpha < 0.002 || width < 0.5 || secLen < 0.5) return;
-
-  const cx = sx + Math.cos(angle) * tm * len;
-  const cy = sy + Math.sin(angle) * tm * len;
-  const stretch = Math.min(18, Math.max(1.2, (secLen * stretchMul) / Math.max(width, 0.5)));
-
-  c.save();
-  c.translate(cx, cy);
-  c.rotate(angle);
-  c.scale(stretch, 1);
-
-  const g = c.createRadialGradient(0, 0, 0, 0, 0, width);
+function ellipseGlow(ctx, x, y, rx, ry, angle, rgb, alpha, stops = [0.22, 0.07]) {
+  if (alpha < 0.002 || rx < 1 || ry < 1) return;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.scale(Math.max(0.01, rx / ry), 1);
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, ry);
   g.addColorStop(0, rgba(rgb, alpha));
-  g.addColorStop(core, rgba(rgb, alpha * 0.38));
-  g.addColorStop(1, 'rgba(0,0,0,0)');
-  c.fillStyle = g;
-  c.beginPath();
-  c.arc(0, 0, width, 0, Math.PI * 2);
-  c.fill();
-  c.restore();
+  g.addColorStop(0.45, rgba(rgb, alpha * stops[0]));
+  g.addColorStop(1, rgba(rgb, alpha * stops[1]));
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(0, 0, ry, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 }
 
-// ─── dust particle ────────────────────────────────────────────────────────────
+function drawShaftPlane(ctx, sx, sy, angle, len, width0, width1, rgb, alpha, options = {}) {
+  if (alpha < 0.002 || len < 4 || width1 < 0.4) return;
+  const ax = Math.cos(angle), ay = Math.sin(angle);
+  const px = -ay, py = ax;
+  const startT = options.startT ?? 0.015;
+  const endT = options.endT ?? 0.96;
+  const farFade = options.farFade ?? 0.10;
+  const nearFade = options.nearFade ?? 0.10;
+  const slices = options.slices ?? 1;
+  const blur = options.blur ?? 0;
+  // noiseBreak: { u, v } — seeds for slowly-animating edge irregularity.
+  // Multiplies sectionAlpha by a small FBM term so trapezoid edges aren't uniform.
+  const noiseBreak = options.noiseBreak ?? null;
+  const noiseBreakStr = options.noiseBreakStr ?? 0.22;
 
-function spawnDust(sx, sy, maxLen, dir, spread) {
-  const a = dir + (Math.random() - 0.5) * spread * 1.65;
-  const d = Math.pow(Math.random(), 0.45) * maxLen * 0.96;
-  return {
-    x:    sx + Math.cos(a) * d,
-    y:    sy + Math.sin(a) * d,
-    vx:   (Math.random() - 0.5) * 0.26,
-    vy:  -(0.014 + Math.random() * 0.088),
-    life: 0.35 + Math.random() * 0.65,
-    decay:0.0010 + Math.random() * 0.0022,
-    size: 0.7 + Math.random() * 3.2,
-  };
+  ctx.save();
+  ctx.globalCompositeOperation = options.blend || 'screen';
+  if (blur > 0) {
+    ctx.shadowColor = rgba(rgb, alpha * 0.55);
+    ctx.shadowBlur = blur;
+  }
+
+  for (let s = 0; s < slices; s++) {
+    const raw0 = s / slices;
+    const raw1 = (s + 1) / slices;
+    const overlap = slices === 1 ? 0 : 0.14;
+    const t0 = lerp(startT, endT, Math.max(0, raw0 - overlap));
+    const t1 = lerp(startT, endT, Math.min(1, raw1 + overlap));
+    const tm = (t0 + t1) * 0.5;
+    const near = smoothstep((tm - startT) / Math.max(0.001, nearFade));
+    const far = smoothstep((endT - tm) / Math.max(0.001, farFade));
+    const distanceFade = Math.pow(Math.max(0, 1 - tm), options.fallPower ?? 1.25);
+    let sectionAlpha = alpha * near * far * (0.28 + distanceFade * 0.92);
+    // Apply noise breakup — irregular brightness profile along beam length.
+    // Seeds evolve slowly with time (via the phase/slot passed from the caller)
+    // so the breakup animates gently rather than being static.
+    if (noiseBreak) {
+      const nbVal = fbm(tm * 3.1 + noiseBreak.u, noiseBreak.v, 47, 2);
+      // Weight noiseBreak strongest near source (tm≈0) where shaft edges converge and look hardest.
+      // Smoothly ramps from 2.5× boost at the source down to 0.8× at tm=0.30+.
+      const nearBoost = lerp(2.5, 0.8, smoothstep(tm / 0.30));
+      sectionAlpha *= 1 + (nbVal - 0.5) * noiseBreakStr * nearBoost;
+    }
+    if (sectionAlpha < 0.0015) continue;
+
+    const w0 = width0 + (width1 - width0) * t0;
+    const w1 = width0 + (width1 - width0) * t1;
+    const wm = width0 + (width1 - width0) * tm;
+    const mx = sx + ax * len * tm;
+    const my = sy + ay * len * tm;
+    const g = ctx.createLinearGradient(mx + px * wm, my + py * wm, mx - px * wm, my - py * wm);
+    // Softened gradient: smoother ramp, less sharp shoulder at edges.
+    // Before: 0.18→0.12, 0.34→0.50. After: 0.12→0.06, 0.28→0.30, 0.45→0.75.
+    g.addColorStop(0.00, 'rgba(0,0,0,0)');
+    g.addColorStop(0.12, rgba(rgb, sectionAlpha * 0.06));
+    g.addColorStop(0.28, rgba(rgb, sectionAlpha * 0.30));
+    g.addColorStop(0.45, rgba(rgb, sectionAlpha * 0.75));
+    g.addColorStop(0.50, rgba(rgb, sectionAlpha));
+    g.addColorStop(0.55, rgba(rgb, sectionAlpha * 0.75));
+    g.addColorStop(0.72, rgba(rgb, sectionAlpha * 0.30));
+    g.addColorStop(0.88, rgba(rgb, sectionAlpha * 0.06));
+    g.addColorStop(1.00, 'rgba(0,0,0,0)');
+
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(sx + ax * len * t0 + px * w0, sy + ay * len * t0 + py * w0);
+    ctx.lineTo(sx + ax * len * t0 - px * w0, sy + ay * len * t0 - py * w0);
+    ctx.lineTo(sx + ax * len * t1 - px * w1, sy + ay * len * t1 - py * w1);
+    ctx.lineTo(sx + ax * len * t1 + px * w1, sy + ay * len * t1 + py * w1);
+    ctx.closePath();
+    ctx.globalAlpha = 1;
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawAtmosphericWisps(ctx, sx, sy, dir, maxLen, fieldW, rayRgb, hazeRgb, alpha, seeds, time, atmo, mode) {
+  if (alpha < 0.002) return;
+  const ax = Math.cos(dir), ay = Math.sin(dir);
+  const px = -ay, py = ax;
+  const count = mode === 'underwater' ? 12 : mode === 'smoky' ? 14 : 8;
+  for (let i = 0; i < count; i++) {
+    const seed = seeds[(i * 7 + 9) % seeds.length];
+    // Per-wisp speed oscillation so some linger while others glide through
+    const speedMul = 0.45 + 0.55 * Math.abs(Math.sin(seed.phase * 1.7 + time * 0.038));
+    const drift = time * (0.015 + seed.speed * 0.032) * atmo.flow * speedMul;
+    const baseU = fract(seed.dist * 0.92 + drift);
+    // Curl: independent FBM fields for along-axis and cross-axis wander
+    const wispCurlA = fbm(baseU * 3.5 + seed.phase,       time * 0.042 + i * 0.53, 173, 3);
+    const wispCurlS = fbm(baseU * 3.1 + seed.phase + 4.2, time * 0.058 + i * 0.39, 179, 3);
+    const u    = clamp(baseU + (wispCurlA - 0.5) * 0.055 * atmo.flow);
+    const sideWander = (wispCurlS - 0.5) * (mode === 'underwater' ? 0.52 : 0.38) * atmo.flow;
+    const side = seed.side * 0.80 + sideWander
+               + Math.sin(baseU * 4.8 + seed.phase) * 0.06;
+    const width = fieldW * (0.22 + Math.pow(u, 0.82) * 1.05);
+    const x = sx + ax * maxLen * u + px * side * width;
+    const y = sy + ay * maxLen * u + py * side * width;
+    const fade = Math.pow(1 - u, 1.15) * smoothstep(1 - Math.abs(side) * 0.82);
+    const local = fbm(u * 2.2 + time * 0.04, side * 2.0, 181 + i, 3);
+    const a = alpha * fade * lerp(0.45, 1.0, local) * (mode === 'clean' ? 0.35 : 1);
+    if (a < 0.003) continue;
+    const rgb = mixRgb(hazeRgb, rayRgb, 0.28 + local * 0.26);
+    // Shape variety: ~38% become elongated beam-aligned streaks, rest stay rounded blobs
+    const isStreak = seed.type > 0.62;
+    const rx = isStreak
+      ? maxLen * (0.075 + seed.size * 0.110)
+      : maxLen * (0.035 + seed.size * 0.055) * (mode === 'underwater' ? 1.45 : 1);
+    const ry = isStreak
+      ? fieldW * (0.008 + seed.size * 0.014)
+      : fieldW * (0.035 + seed.size * 0.085) * (mode === 'smoky' ? 1.35 : 1);
+    const wispAngle = isStreak ? dir + seed.side * 0.06 : dir + seed.side * 0.18;
+    ellipseGlow(ctx, x, y, rx, ry, wispAngle, rgb, a * (isStreak ? 0.065 : 0.090), [0.34, 0.02]);
+  }
+}
+
+function drawShaftFamily(ctx, sx, sy, angle, len, baseW, rgb, glowRgb, alpha, seed, params) {
+  const {
+    fieldScale, soft, fall, noiseStr, occStr, wavePhase, motionPhase, nScale,
+    sourceMerge = 0.12, mode = 'dusty', totalTime: tTime = 0,
+  } = params;
+
+  const underwater = mode === 'underwater';
+  const breathFreq = 0.22 + seed.intensity * 0.18;
+  const breath = 1 + Math.sin(tTime * breathFreq * Math.PI * 2 + seed.phase) * params.breathAmp * 1.8;
+  const length = len * (0.94 + seed.length * 0.08) * (0.96 + soft * 0.06);
+  const width0 = Math.max(0.4, baseW * 0.10 * sourceMerge);
+  const width1 = baseW * seed.width * fieldScale * (0.72 + soft * (underwater ? 1.18 : 0.85)) * breath;
+  const flowPhase = underwater ? wavePhase * 0.72 : wavePhase;
+  const densityWave = fbm(seed.phase + flowPhase * 0.58, seed.bias * 2.0 + flowPhase * 0.10, 71, underwater ? 4 : 3);
+  const occWave = fbm(seed.phase - flowPhase * 0.70, seed.slot * nScale + flowPhase * 0.16, 79, underwater ? 3 : 2);
+  const familyVisible = lerp(1, smoothstep((occWave - 0.30) / 0.55), occStr * 0.50);
+  const densityMod = lerp(1, lerp(0.72, 1.18, densityWave), noiseStr * 0.45);
+  const shaftAlpha = alpha * seed.intensity * densityMod * familyVisible;
+  const haloBoost = params.haloBoost ?? 1;
+  const coreMul = underwater ? 0.52 : 1;
+  const bodyMul = underwater ? 1.20 : 1;
+
+  // Wide halo, visible sheet, and narrow core. All follow the same straight
+  // light direction, but width gradients keep the sides from reading as objects.
+  // Underwater uses much lower blur to preserve distinct shaft edges and gaps.
+  // noiseBreak seeds use seed.phase (time-varying via wavePhase at call site) so
+  // the edge irregularity animates slowly — avoiding static straight-line artifacts.
+  const uwBlurScale = underwater ? 0 : 1;
+  const nb = { u: seed.phase + params.wavePhase * 0.08, v: seed.slot };
+  // Outer halo: reduced alpha by 0.75× and stronger noiseBreak to dissolve edges
+  drawShaftPlane(ctx, sx, sy, angle, length, width0 * (underwater ? 5.4 : 4.6), width1 * (underwater ? 3.20 : 4.40), rgb, shaftAlpha * (underwater ? 0.34 : 0.17) * 0.75 * haloBoost * bodyMul, {
+    startT: 0.01, endT: 0.99, nearFade: underwater ? 0.32 : 0.18, farFade: underwater ? 0.28 : 0.24, fallPower: underwater ? 0.62 : 0.65, slices: 1, blur: ((underwater ? 6 : 12) + soft * (underwater ? 8 : 22)) * uwBlurScale,
+    noiseBreak: nb, noiseBreakStr: 0.42,
+  });
+  // Main body plane
+  drawShaftPlane(ctx, sx, sy, angle, length, width0 * (underwater ? 3.0 : 2.40), width1 * (underwater ? 1.80 : 1.90), rgb, shaftAlpha * (underwater ? 0.38 : 0.28), {
+    startT: 0.025, endT: 0.985, nearFade: underwater ? 0.22 : 0.11, farFade: (underwater ? 0.28 : 0.24) + fall * 0.08, fallPower: (underwater ? 0.80 : 0.90) + fall * 0.22, slices: 1, blur: ((underwater ? 3 : 5) + soft * (underwater ? 5 : 10)) * uwBlurScale,
+    noiseBreak: nb, noiseBreakStr: 0.22,
+  });
+  if (seed.intensity > 0.62) {
+    drawShaftPlane(ctx, sx, sy, angle, length * (underwater ? 0.92 : 0.78), width0 * (underwater ? 1.10 : 0.75), width1 * (underwater ? 0.52 : 0.23), glowRgb, shaftAlpha * (underwater ? 0.18 : 0.095) * coreMul, {
+      startT: 0.055, endT: 0.94, nearFade: 0.08, farFade: underwater ? 0.30 : 0.30, fallPower: underwater ? 0.90 : 1.45, slices: 1, blur: ((underwater ? 2 : 3) + soft * (underwater ? 3 : 5)) * uwBlurScale,
+      noiseBreak: nb, noiseBreakStr: 0.18,
+    });
+  }
+  // Ridges always enabled for underwater — the bright centerline defines each shaft
+  if (seed.intensity > 0.62 && underwater) {
+    drawShaftPlane(ctx, sx, sy, angle, length * 0.88, width0 * 0.60, width1 * 0.18, glowRgb, shaftAlpha * 0.14, {
+      startT: 0.03, endT: 0.95, nearFade: 0.06, farFade: 0.25, fallPower: 0.95, slices: 2, blur: 1.5 + soft * 2.0,
+      noiseBreak: nb, noiseBreakStr: 0.15,
+    });
+  }
+  if (seed.intensity > 0.86 && !underwater) {
+    drawShaftPlane(ctx, sx, sy, angle, length * 0.70, width0 * 0.42, width1 * 0.12, glowRgb, shaftAlpha * 0.070, {
+      startT: 0.035, endT: 0.78, nearFade: 0.07, farFade: 0.32, fallPower: 1.75, slices: 1, blur: 1.5 + soft * 2.4,
+      noiseBreak: nb, noiseBreakStr: 0.15,
+    });
+  }
+}
+
+// pSizeMul multiplies rendered particle radius (0.30–1.70×, from particleSize param).
+// pBrightMul multiplies particle alpha/brightness (0.25–1.75×, from particleBrightness param).
+function drawMicroParticles(ctx, sx, sy, dir, W, H, maxLen, fieldW, rayRgb, glowRgb, alpha, seeds, time, atmo, mode, pSizeMul = 1.0, pBrightMul = 1.0) {
+  const mc = MICRO[mode] || MICRO.dusty;
+  if (alpha < 0.003) return;
+  const ax = Math.cos(dir), ay = Math.sin(dir);
+
+  for (let i = 0; i < mc.count; i++) {
+    const p = seeds[(i * 17 + 7) % seeds.length];
+
+    // Along-beam drift — unique speed per particle
+    const u = fract(p.dist * 1.07 + time * mc.speed * (0.35 + p.speed * 0.65) * atmo.flow);
+
+    // Perpendicular: base slot + rise/fall that loops via fract so particles recycle smoothly
+    const lateralPhase = fract(p.type + time * mc.rise * (0.40 + p.speed * 0.60));
+    const side = (lateralPhase - 0.5) * mc.spread * 2.1
+               + Math.sin(time * (0.10 + p.speed * 0.08) + p.phase * 3.5) * 0.05;
+
+    const x = sx + ax * maxLen * u + (-ay) * side * fieldW;
+    const y = sy + ay * maxLen * u +   ax  * side * fieldW;
+    if (x < -4 || x > W + 4 || y < -4 || y > H + 4) continue;
+
+    const distFade = Math.pow(1 - u, 0.42);
+    const sideFade = smoothstep(1 - Math.abs(side) / (mc.spread * 1.15));
+    if (distFade * sideFade < 0.018) continue;
+
+    const r = mc.size * (0.35 + p.size * 1.30) * pSizeMul;
+    const a = alpha * distFade * sideFade * mc.opacity * (0.30 + p.size * 0.55) * pBrightMul;
+    if (a < 0.005 || r < 0.28) continue;
+
+    const rgb = mixRgb(rayRgb, glowRgb, mc.tint * (0.45 + p.size * 0.55));
+
+    if (r >= 2.0) {
+      // Soft radial glow for larger micro motes
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r * 2.2);
+      g.addColorStop(0,    rgba(rgb, a));
+      g.addColorStop(0.40, rgba(rgb, a * 0.45));
+      g.addColorStop(1,    'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, r * 2.2, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // Compact soft dot for smaller particles
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r * 1.8);
+      g.addColorStop(0, rgba(rgb, a));
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, r * 1.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
+
+// dustAmount controls particle density — higher = more particles on screen.
+// pSizeMul multiplies the rendered size of each dust mote (0.30–1.70×).
+// pBrightMul multiplies the alpha/brightness of each dust mote (0.25–1.75×).
+function drawAtmosphericDust(ctx, sx, sy, dir, maxLen, fieldW, rayRgb, glowRgb, alpha, seeds, time, atmo, mode, pSizeMul = 1.0, pBrightMul = 1.0) {
+  if (alpha < 0.002) return;
+  const ax = Math.cos(dir), ay = Math.sin(dir);
+  const px = -ay, py = ax;
+  const count = Math.min(seeds.length, Math.round(24 + alpha * 120 * atmo.dust));
+  for (let i = 0; i < count; i++) {
+    const p = seeds[i];
+    // Per-particle speed oscillation — each particle breathes fast/slow on its own cycle
+    const speedVar = 0.55 + 0.45 * Math.sin(p.phase * 2.8 + time * (0.06 + p.speed * 0.10));
+    const drift = time * (0.008 + p.speed * 0.028) * atmo.flow * speedVar;
+    const baseU = fract(p.dist + drift);
+    // Curl displacement: two FBM samples give a 2D flow field — particles take curving paths
+    const curlU = fbm(baseU * 4.2 + p.phase,       time * 0.055 + i * 0.44, 91, 3);
+    const curlS = fbm(baseU * 3.8 + p.phase + 5.7, time * 0.072 + i * 0.31, 97, 3);
+    const u    = clamp(baseU + (curlU - 0.5) * 0.06 * atmo.flow);
+    const curlAmt = (0.18 + p.size * 0.24) * atmo.flow;
+    const side = p.side * 0.70 + (curlS - 0.5) * curlAmt
+               + Math.sin(baseU * 6.1 + p.phase) * 0.04;
+    const width = fieldW * (0.16 + Math.pow(u, 0.72) * 1.25);
+    const x = sx + ax * maxLen * u + px * side * width;
+    const y = sy + ay * maxLen * u + py * side * width;
+    const distFade = Math.pow(1 - u, 0.7);
+    const lightFade = smoothstep(1 - Math.abs(side) / 0.88);
+    // Power-law size distribution: ~70% tiny, ~22% medium, ~8% rare large motes.
+    // Large mote caps reduced so they don't overwhelm as oversized blobs.
+    const sizeClass = fract(p.type * 7.3 + p.phase * 0.159);
+    // Size tiers reduced so dust reads as fine particulate, not oversized blobs.
+    // Large tier made rarer (>0.95, ~5%) and capped smaller.
+    const size = mode === 'underwater'
+      ? (sizeClass > 0.88 ? 1.4 + p.size * 2.0 : sizeClass > 0.58 ? 0.7 + p.size * 1.4 : 0.22 + p.size * 0.65)
+      : (sizeClass > 0.95 ? 1.8 + p.size * 2.5 : sizeClass > 0.75 ? 0.8 + p.size * 1.8 : 0.22 + p.size * 0.75);
+    const a = alpha * distFade * lightFade * (0.15 + p.size * 0.45) * pBrightMul;
+    if (a < 0.004) continue;
+    const rgb = mixRgb(rayRgb, glowRgb, p.size * 0.28);
+    const outerR = size * (mode === 'underwater' ? 2.4 : 1.8) * pSizeMul;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, outerR);
+    g.addColorStop(0,    rgba(rgb, a));
+    g.addColorStop(0.30, rgba(rgb, a * 0.55));
+    g.addColorStop(0.65, rgba(rgb, a * 0.15));
+    g.addColorStop(1,    'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, outerR, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }
 
 // ─── main effect ──────────────────────────────────────────────────────────────
 
 export function createRaysEffect() {
   let phase = 0;
-  let dust  = [];
-  const shaftSeeds  = Array.from({ length: 32 }, (_, i) => makeShaftSeed(i));
-  const areaSeeds   = Array.from({ length: 16 }, (_, i) => makeAreaSeed(i));
-  const volumeLayer = {}, areaLayer = {}, streakLayer = {}, ridgeLayer = {};
+  let totalTime = 0;
+  const shaftLayer = {};
+  const shaftSeeds = Array.from({ length: 32 }, (_, i) => makeShaftSeed(i));
+  const particleSeeds = Array.from({ length: 220 }, (_, i) => makeParticleSeed(i));
 
   return {
     reset() {
-      phase = 0; dust = [];
-      [volumeLayer, areaLayer, streakLayer, ridgeLayer].forEach(l => {
-        if (l.ctx) l.ctx.clearRect(0, 0, l.canvas.width, l.canvas.height);
-      });
+      phase = 0;
+      totalTime = 0;
     },
 
     update(ctx, canvas, params, dt) {
-      // ── unpack ─────────────────────────────────────────────────────────────
       const {
         sourceX         = 50,   sourceY         = 15,
         direction       = 92,   spreadAngle     = 50,
@@ -213,7 +447,11 @@ export function createRaysEffect() {
         edgeFeather     = 88,   rayCount        = 11,
         streakSoftness  = 60,   occlusionGaps   = 56,
         noiseAmount     = 72,   noiseScale      = 54,
+        // dustAmount controls particle density — more particles visible at higher values.
         dustAmount      = 58,   driftSpeed      = 18,
+        // particleSize (0–100, default 40): scales particle radius across all atmospheric layers.
+        // particleBrightness (0–100, default 50): scales particle alpha/brightness.
+        particleSize    = 40,   particleBrightness = 50,
         atmosphereMode  = 'dusty',
         rayColor        = '#ffcc77',
         hazeColor       = '#c89040',
@@ -221,539 +459,373 @@ export function createRaysEffect() {
         colorBlend      = 50,
         motionAmount    = 50,   drift           = 30,
         flickerAmount   = 8,    breathing       = 18,
-        turbulenceSpeed = 22,
+        animationSpeed  = 55,   turbulenceSpeed = 22,
       } = params;
 
-      // ── timing ─────────────────────────────────────────────────────────────
-      const motionScale = clamp(motionAmount / 100);
-      const turbRate    = (0.04 + (turbulenceSpeed / 100) * 0.22) * motionScale;
-      phase += dt * turbRate;
+      // Map 0–100 param range to useful multiplier ranges:
+      //   particleSize:       0→0.30×, 50→1.00×, 100→1.70×
+      //   particleBrightness: 0→0.25×, 50→1.00×, 100→1.75×
+      const pSizeMul   = 0.30 + (particleSize       / 100) * 1.40;
+      const pBrightMul = 0.25 + (particleBrightness / 100) * 1.50;
 
-      // ── atmosphere mode multipliers ─────────────────────────────────────────
-      const atmo = ATMO[atmosphereMode] || ATMO.dusty;
-
-      // ── geometry ───────────────────────────────────────────────────────────
       const W = canvas.width, H = canvas.height;
-      const SCALE   = 0.48;  // slightly above 0.5 for a bit more quality
-      const vol   = ensureLayer(volumeLayer, W * SCALE, H * SCALE);
-      const area  = ensureLayer(areaLayer,   W * SCALE, H * SCALE);
-      const strk  = ensureLayer(streakLayer, W * SCALE, H * SCALE);
-      const rdg   = ensureLayer(ridgeLayer,  W * SCALE, H * SCALE);
-      const vctx  = vol.ctx, actx = area.ctx, sctx = strk.ctx, rctx = rdg.ctx;
-      vctx.scale(SCALE, SCALE);
-      actx.scale(SCALE, SCALE);
-      sctx.scale(SCALE, SCALE);
-      rctx.scale(SCALE, SCALE);
+      const atmo = ATMO[atmosphereMode] || ATMO.dusty;
+      const motionScale = clamp(motionAmount / 100);
+      const animSpeed = clamp(animationSpeed / 100);
+      const turb = 0.10 + (turbulenceSpeed / 100) * 0.42;
+      phase += dt * turb * (0.45 + animSpeed * 1.35) * (0.2 + motionScale);
+      totalTime += dt;
 
-      // ── derived values ──────────────────────────────────────────────────────
-      const baseDir    = (direction * Math.PI) / 180;
-      const sourceFlow = atmo.motionMul * motionScale;
-      const flutterX   = (valueNoise(phase * 0.52, 2.1, 151) - 0.5) * W * 0.010 * sourceFlow;
-      const flutterY   = (valueNoise(phase * 0.47, 8.8, 157) - 0.5) * H * 0.008 * sourceFlow;
-      const dirFlutter = (valueNoise(phase * 0.36, 4.5, 163) - 0.5) * 0.030 * sourceFlow;
-      const sx         = W * (sourceX / 100) + flutterX;
-      const sy         = H * (sourceY / 100) + flutterY;
-      const dir        = baseDir + dirFlutter;
-      const halfSpread = (spreadAngle / 2 * Math.PI) / 180;
-      const maxLen     = Math.hypot(W, H) * (beamLength / 100) * 0.88;
-      const fieldW     = Math.min(W, H) * (beamWidth / 100) * 0.82;
-      const cosDirX    = Math.cos(dir), sinDirY = Math.sin(dir);
-      const perpX      = -sinDirY,       perpY   =  cosDirX;
+      const baseDir = (direction * Math.PI) / 180;
+      const sourceMotion = atmo.motion * motionScale * (0.45 + animSpeed * 0.85);
+      const sourceT = totalTime * (0.08 + animSpeed * 0.20);
+      const sx = W * (sourceX / 100) + (valueNoise(sourceT, 2.1, 151) - 0.5) * W * 0.012 * sourceMotion;
+      const sy = H * (sourceY / 100) + (valueNoise(sourceT * 0.9, 8.8, 157) - 0.5) * H * 0.010 * sourceMotion;
+      const dir = baseDir + (valueNoise(sourceT * 0.7, 4.5, 163) - 0.5) * 0.026 * sourceMotion;
+      const halfSpread = (spreadAngle * Math.PI / 180) * 0.5;
+      const maxLen = Math.hypot(W, H) * (beamLength / 100) * 0.90;
+      const fieldW = Math.min(W, H) * (beamWidth / 100) * 0.72;
+      const ax = Math.cos(dir), ay = Math.sin(dir);
 
-      // ── color system ────────────────────────────────────────────────────────
-      // Three direct colors + a blend amount.
-      // Within streaks: glow color near source, ray color for body, haze toward edges.
-      // Within haze layer: haze color.
-      const rayRgb    = hexToRgb(rayColor);
-      const hazeRgb   = hexToRgb(hazeColor);
-      const glowRgb   = hexToRgb(glowColor);
+      const rayRgb = hexToRgb(rayColor);
+      const hazeRgbBase = hexToRgb(hazeColor);
+      const glowRgb = hexToRgb(glowColor);
       const blendFrac = clamp(colorBlend / 100);
+      const hazeRgb = mixRgb(hazeRgbBase, rayRgb, atmo.cool * 0.18);
 
-      // ── scalars ─────────────────────────────────────────────────────────────
-      const opa         = clamp(intensity / 100);
-      const soft        = clamp(softness  / 100) * atmo.softMul;
-      const dens        = clamp(density   / 100);
-      const fall        = clamp(falloff   / 100);
-      const hazeStr     = clamp(atmosphericHaze / 100) * atmo.hazeMul;
-      const feather     = clamp(edgeFeather / 100);
-      const noiseStr    = clamp(noiseAmount / 100) * atmo.noiseMul;
-      const nScale      = 0.7 + (noiseScale / 100) * 2.4;
-      const occStr      = clamp(occlusionGaps / 100) * atmo.occMul;
-      const driftStr    = clamp(drift / 100) * motionScale;
-      const breathAmp   = clamp(breathing / 100) * 0.055 * motionScale;
-      const flickAmp    = clamp(flickerAmount / 100) * 0.16;
-      const strkSoft    = clamp(streakSoftness / 100) * atmo.strkMul;
-      const dustMul     = atmo.dustMul;
-      const shaftCount  = Math.max(2, Math.round(rayCount));
+      const opa = clamp(intensity / 100);
+      const soft = clamp(softness / 100) * atmo.soft;
+      const dens = clamp(density / 100);
+      const fall = clamp(falloff / 100);
+      const haze = clamp(atmosphericHaze / 100) * atmo.haze;
+      const noiseStr = clamp(noiseAmount / 100) * atmo.noise;
+      const occStr = clamp(occlusionGaps / 100) * atmo.occ;
+      const feather = clamp(edgeFeather / 100);
+      const strkSoft = clamp(streakSoftness / 100);
+      const underwater = atmosphereMode === 'underwater';
+      const breathAmp = clamp(breathing / 100) * motionScale * (underwater ? 0.24 : 0.16);
+      const wavePhase = totalTime * (0.10 + driftSpeed / 100 * (underwater ? 0.82 : 0.55)) * atmo.flow * (0.45 + animSpeed * 1.25);
+      const motionPhase = totalTime * (0.18 + animSpeed * (underwater ? 0.82 : 0.52)) * (0.40 + motionScale * 0.95);
+      const nScale = 0.7 + (noiseScale / 100) * 2.4;
+      const globalPulse = 1 + (valueNoise(phase * 1.8, 1.4, 3) - 0.5) * clamp(flickerAmount / 100) * 0.10;
+      const sceneBreathe = 1 + Math.sin(totalTime * 0.11) * 0.045
+                             + Math.sin(totalTime * 0.073 + 1.4) * 0.028;
+      const fanSweepAmp  = halfSpread * 0.18 * motionScale * (0.4 + animSpeed * 0.8);
+      const fanSweepFreq = 0.055 + (driftSpeed / 100) * 0.045;
+      const globalFanSweep = Math.sin(totalTime * fanSweepFreq) * fanSweepAmp;
+      const lightAlpha = opa * dens * globalPulse * sceneBreathe;
+      const shaftCtx = ensureCanvas(shaftLayer, W, H);
+      const flowTime = totalTime * (0.22 + (drift / 100) * 0.62) * (0.45 + animSpeed * 1.05);
 
-      // ── animation ──────────────────────────────────────────────────────────
-      const driftPhase  = phase * (0.035 + driftStr * 0.10);
-      const turbPhase   = phase;
-      const flickerVal  = 1 + (valueNoise(phase * 2.6, 1.4, 3) - 0.5) * flickAmp;
-      const breathVal   = 1 + Math.sin(phase * 0.62) * breathAmp;
-      const globalMod   = opa * flickerVal * breathVal;
-
-      // ── shaft clustering ────────────────────────────────────────────────────
-      // Group shafts into clusters at irregular angular positions.
-      // Gaps between clusters = the "multiple separate shaft families" look.
-      const clusterCount = Math.max(2, Math.ceil(shaftCount / 3.4));
-      const clusterAngles = Array.from({ length: clusterCount }, (_, k) => {
-        const evenSlot     = k / clusterCount - 0.5 + 0.5 / clusterCount;
-        const perturbedSlot = evenSlot + (hash(k, k * 5.31, 99) - 0.5) * 0.30;
-        return dir + perturbedSlot * halfSpread * 2.0 * 0.80;
-      });
-      const shaftAngles = Array.from({ length: shaftCount }, (_, si) => {
-        const seed     = shaftSeeds[si % 32];
-        const cIdx     = si % clusterCount;
-        const withinOff = (seed.clusterBias - 0.5) * halfSpread * 0.38;
-        return clusterAngles[cIdx] + withinOff;
-      });
-
-      // ────────────────────────────────────────────────────────────────────────
-      // LAYER 1: ATMOSPHERIC VOLUME (haze)
-      // One large directional ellipse for the broad light volume,
-      // plus 16 FBM-displaced smaller blobs for density variation.
-      // No blob chains → no repeated circular artifacts in the volume layer.
-      // ────────────────────────────────────────────────────────────────────────
-      {
-        vctx.globalCompositeOperation = 'source-over';
-
-        if (hazeStr > 0.01) {
-          // Primary volume: single elongated ellipse along beam axis
-          const hLen    = maxLen * 0.82;
-          const hWidth  = fieldW * (1.5 + soft * 0.6);
-          const hCX     = sx + cosDirX * hLen * 0.42;
-          const hCY     = sy + sinDirY * hLen * 0.42;
-          const hStretch = Math.min(16, (hLen * 0.5) / Math.max(hWidth, 1));
-
-          vctx.save();
-          vctx.translate(hCX, hCY);
-          vctx.rotate(dir);
-          vctx.scale(hStretch, 1);
-          const hg = vctx.createRadialGradient(0, 0, 0, 0, 0, hWidth);
-          const hA = hazeStr * dens * globalMod;
-          hg.addColorStop(0,    rgba(hazeRgb, hA * 0.28));
-          hg.addColorStop(0.38, rgba(hazeRgb, hA * 0.15));
-          hg.addColorStop(0.72, rgba(hazeRgb, hA * 0.05));
-          hg.addColorStop(1,    'rgba(0,0,0,0)');
-          vctx.fillStyle = hg;
-          vctx.beginPath();
-          vctx.arc(0, 0, hWidth, 0, Math.PI * 2);
-          vctx.fill();
-          vctx.restore();
-
-          // Near-source glow: the densest atmospheric region
-          const gR = Math.min(W, H) * 0.26 * (1 + hazeStr * 0.3);
-          const gg = vctx.createRadialGradient(sx, sy, 0, sx, sy, gR);
-          gg.addColorStop(0,    rgba(mixRgb(glowRgb, hazeRgb, 0.5), hA * 0.22));
-          gg.addColorStop(0.45, rgba(hazeRgb, hA * 0.08));
-          gg.addColorStop(1,    'rgba(0,0,0,0)');
-          vctx.fillStyle = gg;
-          vctx.beginPath();
-          vctx.arc(sx, sy, gR, 0, Math.PI * 2);
-          vctx.fill();
-
-          // 4×4 FBM-displaced density variation blobs
-          // These modulate the volume's density without adding repeated circular artifacts
-          // (they're at a very different scale from the streaks and heavily blurred)
-          const H_LONG = 4, H_LAT = 4;
-          for (let li = 0; li < H_LONG; li++) {
-            const tBase  = (li + 0.5) / H_LONG;
-            const dist   = maxLen * Math.pow(tBase, 0.68);
-            const longF  = Math.pow(1 - tBase, 0.36 + fall * 1.5) * smoothstep(tBase * 7);
-
-            for (let ai = 0; ai < H_LAT; ai++) {
-              const uBase  = (ai + 0.5) / H_LAT - 0.5;
-              // FBM lateral displacement — blobs escape the regular grid
-              const pertN  = fbm(tBase * nScale * 0.8 + driftPhase * 0.20, uBase * nScale * 1.6 + driftPhase * 0.13, 17, 3);
-              const uP     = uBase + (pertN - 0.5) * noiseStr * 0.72 * Math.sign(uBase || 1);
-              const latPx  = uP * fieldW * 2.6;
-
-              // Organic edge: FBM-shifted boundary, not hard Gaussian
-              const latN   = Math.abs(uP) * 2;
-              const edgeN  = fbm(latN * 2.1 + phase * 0.022, tBase * 1.5 + li * 0.42, 23, 2);
-              const angEnv = smoothstep(clamp(1 - latN * (1 - feather * 0.52) + edgeN * noiseStr * 0.38));
-              if (angEnv < 0.015) continue;
-
-              const densN  = fbm(tBase * nScale * 1.2 + driftPhase * 0.24, uP * nScale * 2.0 + driftPhase * 0.16, 7, 3);
-              const wx     = sx + cosDirX * dist + perpX * latPx;
-              const wy     = sy + sinDirY * dist + perpY * latPx;
-              const bR     = fieldW * (0.22 + soft * 0.28) * (0.52 + densN * 0.88);
-              if (bR < 1.5) continue;
-
-              const nMod   = lerp(1, lerp(0.42, 1, densN), noiseStr);
-              const alpha  = hazeStr * dens * globalMod * longF * angEnv * nMod * 0.068;
-              if (alpha < 0.004) continue;
-
-              // Blend hazeColor toward rayColor based on colorBlend
-              const blobRgb = mixRgb(hazeRgb, rayRgb, blendFrac * 0.38);
-              const bg = vctx.createRadialGradient(wx, wy, 0, wx, wy, bR);
-              bg.addColorStop(0,   rgba(blobRgb, alpha));
-              bg.addColorStop(0.5, rgba(blobRgb, alpha * 0.36));
-              bg.addColorStop(1,   'rgba(0,0,0,0)');
-              vctx.fillStyle = bg;
-              vctx.beginPath();
-              vctx.arc(wx, wy, bR, 0, Math.PI * 2);
-              vctx.fill();
-            }
-          }
-        }
-      }
-
-      // ────────────────────────────────────────────────────────────────────────
-      // LAYER 2: BROAD AREA SHAFT FAMILIES
-      // Straight luminous planes inside the broad volume. These add the
-      // stock-footage "layered god ray" read without replacing the v4 streaks.
-      // Motion lives in density and source shimmer, not path bending.
-      // ────────────────────────────────────────────────────────────────────────
-      {
-        actx.globalCompositeOperation = 'lighter';
-
-        const familyCount = Math.max(4, Math.min(10, Math.round(4 + shaftCount * 0.25)));
-        const AREA_SECS = 9;
-        const waveSpeed = (0.14 + (driftSpeed / 100) * 0.68) * atmo.driftMul * motionScale;
-        const lateralFlow = driftStr * 0.56;
-        const nearMerge = 0.20 + soft * 0.10;
-
-        for (let li = 0; li < familyCount; li++) {
-          const seed = areaSeeds[li % areaSeeds.length];
-          const slot = familyCount === 1 ? 0 : (li / (familyCount - 1) - 0.5);
-          const angleOffset = (slot + seed.slotJitter * 0.14) * halfSpread * 1.66;
-          const layerAngle = dir + angleOffset;
-          const layerLen = maxLen * seed.lengthMul * (0.96 + soft * 0.14);
-          const sourceW = fieldW * (0.018 + soft * 0.010) * seed.widthMul;
-          const farW = fieldW * (0.20 + soft * 0.12) * seed.widthMul;
-          const centerWeight = 1 - Math.min(0.66, Math.abs(slot) * 0.26);
-          const layerRgb = mixRgb(rayRgb, hazeRgb, blendFrac * (0.18 + Math.abs(slot) * 0.34));
-          const haloRgb = mixRgb(hazeRgb, rayRgb, blendFrac * 0.28);
-
-          const angDev = Math.abs(Math.atan2(Math.sin(layerAngle - dir), Math.cos(layerAngle - dir)));
-          const edgeN = fbm(li * 0.46 + phase * 0.010, angleOffset * 3.0, seed.phase + 61, 2);
-          const effH = halfSpread * (0.92 + feather * 0.42 + edgeN * noiseStr * 0.20);
-          const angEnv = smoothstep(clamp(1 - angDev / Math.max(0.001, effH)));
-          if (angEnv < 0.015) continue;
-
-          for (let s = 0; s < AREA_SECS; s++) {
-            const t0 = Math.max(0, (s - 0.38) / AREA_SECS);
-            const t1 = Math.min(1, (s + 1.38) / AREA_SECS);
-            const tm = (t0 + t1) * 0.5;
-            const sourceMerge = 1 - smoothstep(tm / Math.max(0.001, nearMerge));
-            const startFade = smoothstep(tm / Math.max(0.001, nearMerge * 0.46));
-            const farFade = Math.pow(1 - tm, 0.88 + fall * 3.25);
-            const lengthFade = startFade * farFade;
-
-            const flowU = tm * nScale * 1.62 + phase * waveSpeed + seed.sideBias * 0.42;
-            const flowV = slot * nScale * 2.45 + phase * lateralFlow + li * 0.43;
-            const smokeN = fbm(flowU, flowV, seed.phase + 71, 4);
-            const cloudN = fbm(tm * nScale * 0.78 + phase * waveSpeed * 0.34, slot * 1.45 + phase * 0.024, seed.phase + 75, 2);
-            const waveN = fbm(tm * nScale * 3.0 - phase * waveSpeed * 0.82, li * 0.82 + phase * 0.036, seed.phase + 79, 2);
-            const laneCut = lerp(1, smoothstep(clamp((waveN - 0.22) / 0.64)), occStr * 0.72);
-            const familyGap = 1 - occStr * 0.24 * smoothstep(Math.abs(slot) * 1.8);
-            const densityMod = lerp(1, lerp(0.26, 1.14, smokeN * 0.70 + cloudN * 0.30), noiseStr * 0.92);
-            const segmentBreath = 1 + Math.sin(phase * seed.breath + seed.phase + li * 0.9) * breathAmp * 3.2;
-
-            const alpha = globalMod
-              * dens
-              * hazeStr
-              * seed.intensity
-              * centerWeight
-              * angEnv
-              * lengthFade
-              * laneCut
-              * familyGap
-              * densityMod
-              * segmentBreath
-              * 0.135;
-            if (alpha < 0.003) continue;
-
-            const widthGrowth = Math.pow(tm, 0.72);
-            const beamW = (sourceW + farW * widthGrowth) * (1.00 + smokeN * 0.10 + waveN * 0.06);
-            const haloW = beamW * (1.95 + soft * 0.28);
-            const coreW = beamW * (0.46 + strkSoft * 0.20);
-            const hotW = beamW * (0.20 + strkSoft * 0.12);
-
-            drawSoftBeamSegment(actx, sx, sy, layerAngle, t0, t1, layerLen, haloW, haloRgb, alpha * 0.20, 0.96, 0.50);
-            drawSoftBeamSegment(actx, sx, sy, layerAngle, t0, t1, layerLen, coreW, layerRgb, alpha, 1.05, 0.38);
-
-            if (seed.intensity > 0.70 && tm < 0.82) {
-              const haloColor = mixRgb(glowRgb, rayRgb, 0.34 + blendFrac * 0.18);
-              const strongFall = Math.pow(1 - tm, 1.34 + fall * 1.8);
-              drawSoftBeamSegment(actx, sx, sy, layerAngle, t0, t1, layerLen * 0.92, hotW, haloColor, alpha * strongFall * 0.72, 1.15, 0.32);
-              drawSoftBeamSegment(actx, sx, sy, layerAngle, t0, t1, layerLen * 0.92, hotW * 3.1, rayRgb, alpha * strongFall * 0.13, 1.0, 0.50);
-            }
-
-            if (tm < 0.30) {
-              const nearRgb = mixRgb(glowRgb, rayRgb, 0.42 + blendFrac * 0.20);
-              const nearW = beamW * (1.35 + sourceMerge * 0.75);
-              drawSoftBeamSegment(actx, sx, sy, layerAngle, t0, t1, layerLen * 0.72, nearW, nearRgb, alpha * sourceMerge * 0.48, 1.0, 0.46);
-            }
-          }
-        }
-      }
-
-      // ────────────────────────────────────────────────────────────────────────
-      // LAYER 3: SHAFT STREAKS
-      // Each shaft: 4 elongated sections (not 20 circular blobs).
-      // Each section is a stretched ellipse aligned with the shaft direction.
-      // Result: clean directional streaks with no repeated-circle artifacts.
-      // FBM modulates per-section alpha for natural density variation and gaps.
-      // ────────────────────────────────────────────────────────────────────────
-      {
-        sctx.globalCompositeOperation = 'lighter';
-        const SECTIONS = 4;
-
-        for (let si = 0; si < shaftCount; si++) {
-          const seed       = shaftSeeds[si % 32];
-          const shaftAngle = shaftAngles[si];
-          const shaftLen   = maxLen * seed.lengthMul;
-          // Shaft cross-section width; feather widens the shaft
-          const shaftW     = fieldW * seed.widthMul * 0.19 * (0.42 + soft * 0.68);
-
-          // Angular envelope: FBM-perturbed boundary (not hard Gaussian)
-          const angDev = Math.abs(shaftAngle - dir);
-          const edgeN  = fbm(angDev * 2.4 + phase * 0.020, si * 0.52 + phase * 0.007, seed.phase + 31, 2);
-          const effH   = halfSpread * (0.94 + feather * 0.34 + edgeN * noiseStr * 0.32);
-          const angEnv = smoothstep(clamp(1 - angDev / effH));
-          if (angEnv < 0.018) continue;
-
-          for (let s = 0; s < SECTIONS; s++) {
-            const t0 = s / SECTIONS, t1 = (s + 1) / SECTIONS;
-            const tm = (t0 + t1) * 0.5;
-
-            const longFall = Math.pow(1 - tm, 0.40 + fall * 2.2) * smoothstep(tm * 9);
-
-            // FBM density: one call per section (not per pixel) — crisp sections
-            const densN = fbm(tm * nScale * 1.7 + driftPhase * 0.16, si * 0.70 + driftPhase * 0.09, seed.phase, 3);
-            const occN  = fbm(tm * nScale * 3.4 + turbPhase  * 0.14, si * 1.22 + turbPhase  * 0.09, seed.phase + 17, 2);
-            const occMask = lerp(1, smoothstep(clamp((occN - 0.24) / 0.66)), occStr);
-
-            const nMod  = lerp(1, lerp(0.42, 1, densN), noiseStr);
-            const alpha = globalMod * dens * seed.intensity * longFall * angEnv * occMask * nMod * 0.24;
-            if (alpha < 0.003) continue;
-
-            // Color: blend from glowColor near source → rayColor → hazeColor at tips
-            const outerT  = clamp((tm - 0.55) * 2.2) * blendFrac * 0.5; // haze at tips
-            const secRgb  = mixRgb(mixRgb(glowRgb, rayRgb, clamp(tm * 4.0 + (1 - blendFrac))), hazeRgb, outerT);
-            const finalRgb = mixRgb(secRgb, rayRgb, 1 - blendFrac * 0.6);
-
-            drawSection(sctx, sx, sy, shaftAngle, t0, t1, shaftLen, shaftW, finalRgb, alpha);
-          }
-        }
-
-        // Edge-scatter: dim atmospheric bleed slightly beyond spread boundary
-        const SCATTER = Math.round(shaftCount * 1.6);
-        for (let s = 0; s < SCATTER; s++) {
-          const tS   = Math.pow(hash(s, s * 3.1, 55), 0.75);
-          const side = hash(s * 2, s, 66) > 0.5 ? 1 : -1;
-          const aExc = halfSpread * (0.88 + hash(s * 3, s + 1, 88) * 0.52);
-          const angS = dir + side * aExc;
-          const wS   = sx + Math.cos(angS) * maxLen * tS;
-          const hS   = sy + Math.sin(angS) * maxLen * tS;
-          const visN = fbm(tS * nScale * 1.4 + driftPhase * 0.22, s * 0.50 + driftPhase * 0.14, 55, 2);
-          const scA  = globalMod * hazeStr * dens * Math.pow(1 - tS, 0.5 + fall * 1.5) * lerp(0.22, 0.82, visN) * noiseStr * 0.028;
-          if (scA < 0.003) continue;
-          const scR = fieldW * (0.09 + soft * 0.12);
-          const sg  = sctx.createRadialGradient(wS, hS, 0, wS, hS, scR);
-          sg.addColorStop(0, rgba(hazeRgb, scA));
-          sg.addColorStop(1, 'rgba(0,0,0,0)');
-          sctx.fillStyle = sg;
-          sctx.beginPath(); sctx.arc(wS, hS, scR, 0, Math.PI * 2); sctx.fill();
-        }
-      }
-
-      // ────────────────────────────────────────────────────────────────────────
-      // LAYER 4: BRIGHT RIDGE CORES
-      // Narrow bright centerlines for the top-intensity shafts.
-      // Gives the "streak has a bright spine" quality without hard lines.
-      // Only the dominant shafts get ridges — others remain soft.
-      // ────────────────────────────────────────────────────────────────────────
-      {
-        rctx.globalCompositeOperation = 'lighter';
-        const RIDGE_SECS = 3;
-        const ridgeCount = Math.max(2, Math.ceil(shaftCount * 0.55));
-
-        // Render only the brightest shafts
-        const sortedIdx = Array.from({ length: shaftCount }, (_, i) => i)
-          .sort((a, b) => shaftSeeds[b % 32].intensity - shaftSeeds[a % 32].intensity)
-          .slice(0, ridgeCount);
-
-        for (const si of sortedIdx) {
-          const seed       = shaftSeeds[si % 32];
-          const shaftAngle = shaftAngles[si];
-          const shaftLen   = maxLen * seed.lengthMul;
-          const ridgeW     = fieldW * seed.widthMul * 0.060 * (0.38 + soft * 0.48);
-
-          const angDev  = Math.abs(shaftAngle - dir);
-          const edgeNR  = fbm(angDev * 2.8 + phase * 0.016, si * 0.47 + phase * 0.006, seed.phase + 41, 2);
-          const effHR   = halfSpread * (0.94 + feather * 0.30 + edgeNR * noiseStr * 0.28);
-          const angEnvR = smoothstep(clamp(1 - angDev / effHR));
-          if (angEnvR < 0.022) continue;
-
-          for (let s = 0; s < RIDGE_SECS; s++) {
-            const t0 = s / RIDGE_SECS, t1 = (s + 1) / RIDGE_SECS;
-            const tm = (t0 + t1) * 0.5;
-            const longF = Math.pow(1 - tm, 0.44 + fall * 2.1) * smoothstep(tm * 8);
-            const dN    = fbm(tm * nScale * 1.9 + driftPhase * 0.14, si * 0.73 + driftPhase * 0.07, seed.phase + 5, 2);
-            const oN    = fbm(tm * nScale * 3.5 + turbPhase  * 0.14, si * 1.28 + turbPhase  * 0.07, seed.phase + 22, 2);
-            const oM    = lerp(1, smoothstep(clamp((oN - 0.22) / 0.68)), occStr);
-            const nM    = lerp(1, lerp(0.44, 1, dN), noiseStr);
-            const alpha = globalMod * dens * seed.intensity * 0.85 * longF * angEnvR * oM * nM * 0.18;
-
-            // Ridge uses glowColor mixed toward rayColor for a bright warm core
-            const ridgeRgb = mixRgb(glowRgb, rayRgb, lerp(0.35, 0.75, tm) * (1 - blendFrac * 0.5) + blendFrac * 0.3);
-            drawSection(rctx, sx, sy, shaftAngle, t0, t1, shaftLen, ridgeW, ridgeRgb, alpha);
-          }
-        }
-      }
-
-      // ── composite ──────────────────────────────────────────────────────────
       ctx.save();
       ctx.globalCompositeOperation = 'screen';
 
-      // Volume haze: very heavy blur — the diffuse atmospheric medium
-      const volBlur = 22 + soft * 24;
-      ctx.filter = `blur(${volBlur}px)`;
-      ctx.drawImage(vol.canvas, 0, 0, W, H);
+      // Broad environmental volume. These soft ellipses bake in blur via gradients.
+      if (haze > 0.01) {
+        const baseHaze = lightAlpha * haze;
+        const broadRgb = mixRgb(hazeRgb, rayRgb, blendFrac * 0.25);
+        ellipseGlow(
+          ctx,
+          sx + ax * maxLen * 0.34,
+          sy + ay * maxLen * 0.34,
+          maxLen * (0.42 + soft * 0.14),
+          fieldW * (1.05 + soft * 0.68),
+          dir,
+          broadRgb,
+          baseHaze * 0.24,
+          [0.30, 0.025],
+        );
+        ellipseGlow(
+          ctx,
+          sx + ax * maxLen * 0.18,
+          sy + ay * maxLen * 0.18,
+          maxLen * 0.20,
+          fieldW * (0.42 + soft * 0.25),
+          dir,
+          mixRgb(glowRgb, rayRgb, 0.50),
+          baseHaze * 0.25,
+          [0.28, 0.02],
+        );
+      }
 
-      // Area families: broad straight light planes that sit between haze and crisp streaks
-      const areaBlur = 7 + strkSoft * 12 + soft * 3;
-      ctx.filter = `blur(${areaBlur}px)`;
-      ctx.globalAlpha = 0.92;
-      ctx.drawImage(area.canvas, 0, 0, W, H);
+      // Ambient fill — strength varies by mode: warm/foggy modes fill gaps with color, dark modes stay dark
+      const ambFillStr = underwater ? 0.14
+        : atmosphereMode === 'clean' ? 0.07
+        : (atmosphereMode === 'foggy' || atmosphereMode === 'misty') ? 0.28
+        : 0.22;
+      ellipseGlow(ctx, sx + ax * maxLen * 0.42, sy + ay * maxLen * 0.42,
+        maxLen * 0.65, fieldW * 1.35, dir,
+        mixRgb(hazeRgb, rayRgb, blendFrac * 0.20), lightAlpha * haze * ambFillStr, [0.45, 0.06]);
 
-      ctx.filter = `blur(${areaBlur * 2.6 + 10}px)`;
-      ctx.globalAlpha = 0.26;
-      ctx.drawImage(area.canvas, 0, 0, W, H);
-      ctx.globalAlpha = 1;
+      // Straight widening shaft families. Layout moves subtly, but centerlines stay straight.
+      const shaftCount = Math.max(2, Math.round(rayCount));
+      const familyCount = Math.max(3, Math.min(11, Math.round(shaftCount * (underwater ? 0.72 : 0.72))));
+      const spreadUsable = halfSpread * (0.62 + feather * 0.30);
+      for (let i = 0; i < familyCount; i++) {
+        const seed = shaftSeeds[i % shaftSeeds.length];
+        const even = familyCount === 1 ? 0 : i / (familyCount - 1) - 0.5;
+        const slot = even + seed.slot * 0.20;
+        // Underwater: more angular drift gives natural fan variation
+        const clusterDrift = (fbm(i * 0.41, motionPhase * 0.55 + seed.phase, 117, 2) - 0.5) * halfSpread * (underwater ? 0.20 : 0.12) * motionScale;
+        const shaftDriftFreq = 0.15 + seed.intensity * 0.13;
+        const shaftDrift = Math.sin(totalTime * shaftDriftFreq + seed.phase * 2.1) * halfSpread * 0.08 * motionScale;
+        const angle = dir + slot * spreadUsable * 2 + clusterDrift + globalFanSweep + shaftDrift;
+        const edge = Math.abs(slot) * 2;
+        const edgeFade = smoothstep(1 - edge * (0.64 + (1 - feather) * 0.26));
+        if (edgeFade < 0.015) continue;
+        const outerCool = Math.pow(Math.abs(slot) * 2, 1.4);
+        const colorMix = clamp(blendFrac * (0.18 + Math.abs(slot) * 0.35) + outerCool * 0.12);
+        const shaftRgb = mixRgb(rayRgb, hazeRgb, colorMix);
+        const coreRgb = mixRgb(glowRgb, rayRgb, 0.42 + blendFrac * 0.18);
+        const baseW = fieldW * (0.040 + soft * 0.050 + strkSoft * 0.026) * atmo.width;
+        // Underwater shafts are bright — definition comes from crisp edges, not dimness
+        const alpha = lightAlpha * haze * edgeFade * (0.25 + strkSoft * 0.16) * (underwater ? 0.88 : 1);
+        drawShaftFamily(shaftCtx, sx, sy, angle, maxLen, baseW, shaftRgb, coreRgb, alpha, seed, {
+          fieldScale: 1,
+          soft,
+          fall,
+          noiseStr,
+          occStr,
+          wavePhase,
+          motionPhase,
+          nScale,
+          breathAmp,
+          haloBoost: atmo.halo,
+          mode: atmosphereMode,
+          sourceMerge: 0.08 + soft * 0.06,
+          totalTime,
+        });
+      }
 
-      // Streak body: controlled by streakSoftness — crisp or dreamy
-      const strkBlur  = 5 + strkSoft * 18;
-      ctx.filter = `blur(${strkBlur}px)`;
-      ctx.drawImage(strk.canvas, 0, 0, W, H);
-
-      // Streak halo: extra soft pass of streaks for depth/glow
-      ctx.filter = `blur(${strkBlur * 2.8 + 8}px)`;
-      ctx.globalAlpha = 0.32;
-      ctx.drawImage(strk.canvas, 0, 0, W, H);
-      ctx.globalAlpha = 1;
-
-      // Ridge: sharpest pass — preserves streak spine visibility
-      const rdgBlur = 2 + soft * 6;
-      ctx.filter = `blur(${rdgBlur}px)`;
-      ctx.drawImage(rdg.canvas, 0, 0, W, H);
-
-      // Ridge aureole: soft glow around each spine
-      ctx.filter = `blur(${rdgBlur * 3.5 + 6}px)`;
-      ctx.globalAlpha = 0.38;
-      ctx.drawImage(rdg.canvas, 0, 0, W, H);
-      ctx.globalAlpha = 1;
-
-      ctx.filter = 'none';
-
-      // ── source bloom ───────────────────────────────────────────────────────
-      if (sourceGlow > 2) {
-        const glowStr = (sourceGlow / 100) * globalMod;
-        const baseR   = Math.min(W, H);
-
-        // Hot core: glowColor
-        const r0 = baseR * (0.032 + glowStr * 0.052);
-        const g0 = ctx.createRadialGradient(sx, sy, 0, sx, sy, r0);
-        g0.addColorStop(0,    `rgba(255,255,252,${clamp(glowStr * opa * 0.96).toFixed(4)})`);
-        g0.addColorStop(0.30, rgba(glowRgb, glowStr * opa * 0.60));
-        g0.addColorStop(1,    'rgba(0,0,0,0)');
-        ctx.fillStyle = g0;
-        ctx.beginPath(); ctx.arc(sx, sy, r0, 0, Math.PI * 2); ctx.fill();
-
-        // Mid aureole: rayColor
-        const r1 = baseR * (0.08 + glowStr * 0.16);
-        const g1 = ctx.createRadialGradient(sx, sy, r0 * 0.22, sx, sy, r1);
-        g1.addColorStop(0,    rgba(mixRgb(glowRgb, rayRgb, 0.5), glowStr * opa * 0.38));
-        g1.addColorStop(0.55, rgba(rayRgb, glowStr * opa * 0.12));
-        g1.addColorStop(1,    'rgba(0,0,0,0)');
-        ctx.fillStyle = g1;
-        ctx.beginPath(); ctx.arc(sx, sy, r1, 0, Math.PI * 2); ctx.fill();
-
-        // Wide directional scatter: elongated ellipse along beam
-        const r2 = baseR * (0.18 + glowStr * 0.24);
-        ctx.save();
-        ctx.translate(sx + cosDirX * r2 * 0.10, sy + sinDirY * r2 * 0.10);
-        ctx.rotate(dir);
-        ctx.scale(1.55 + soft * 0.32, 0.50 + soft * 0.30);
-        const g2 = ctx.createRadialGradient(0, 0, 0, 0, 0, r2);
-        g2.addColorStop(0,    rgba(rayRgb, glowStr * opa * 0.20));
-        g2.addColorStop(0.55, rgba(hazeRgb, glowStr * opa * 0.06));
-        g2.addColorStop(1,    'rgba(0,0,0,0)');
-        ctx.fillStyle = g2;
-        ctx.beginPath(); ctx.arc(0, 0, r2, 0, Math.PI * 2); ctx.fill();
-        ctx.restore();
-
-        // Short directional fan: connects the source bloom into the layered volume
-        const fanLen = maxLen * (0.26 + glowStr * 0.12);
-        const fanW = fieldW * (0.44 + soft * 0.18);
-        for (let fs = 0; fs < 4; fs++) {
-          const t0 = fs / 5.2;
-          const t1 = (fs + 1.55) / 5.2;
-          const tm = (t0 + t1) * 0.5;
-          const fanA = glowStr * opa * dens * Math.pow(1 - tm, 1.55) * (0.18 + hazeStr * 0.05);
-          if (fanA < 0.006) continue;
-          const warmRgb = mixRgb(glowRgb, rayRgb, 0.38 + blendFrac * 0.22);
-          const fw = fanW * Math.pow(Math.max(tm, 0.03), 0.42) * (1.35 - tm * 0.28);
-          drawSoftBeamSegment(ctx, sx, sy, dir, t0, t1, fanLen, fw, warmRgb, fanA, 1.08, 0.52);
+      // Extra broad outer sheets for cinematic layered read (not for underwater — they create blobs).
+      if (!underwater) {
+        const sheetCount = Math.max(2, Math.min(6, Math.round(familyCount / 3)));
+        for (let i = 0; i < sheetCount; i++) {
+          const seed = shaftSeeds[(i * 5 + 3) % shaftSeeds.length];
+          const slot = sheetCount === 1 ? 0 : i / (sheetCount - 1) - 0.5;
+          const angle = dir + slot * halfSpread * 1.18 + globalFanSweep;
+          const sheetRgb = mixRgb(rayRgb, hazeRgb, 0.35 + blendFrac * 0.28);
+          const sheetAlpha = lightAlpha * haze * seed.intensity * 0.14 * atmo.halo;
+          const w = fieldW * (0.16 + soft * 0.15) * atmo.width * seed.width;
+          drawShaftPlane(shaftCtx, sx, sy, angle, maxLen * (0.96 + seed.length * 0.06), w * 0.08, w * 2.2, sheetRgb, sheetAlpha, {
+            startT: 0.035, endT: 0.99, nearFade: 0.10, farFade: 0.32, fallPower: 0.95, slices: 1, blur: 14 + soft * 20,
+            noiseBreak: { u: seed.phase + wavePhase * 0.06, v: seed.slot }, noiseBreakStr: 0.35,
+          });
         }
       }
 
-      // ── dust / particulate ─────────────────────────────────────────────────
-      {
-        const dustTarget = Math.floor((dustAmount / 100) * dustMul * 200);
-        const spread2    = halfSpread * 2;
-        while (dust.length < dustTarget) dust.push(spawnDust(sx, sy, maxLen, dir, spread2));
-        while (dust.length > dustTarget) dust.pop();
-
-        const dSpeed = 0.26 + (driftSpeed / 100) * 0.98 * atmo.driftMul * motionScale;
-
-        for (let i = dust.length - 1; i >= 0; i--) {
-          const p = dust[i];
-          p.x += p.vx * dt * 60 * dSpeed;
-          p.y += p.vy * dt * 60 * dSpeed;
-          p.life -= p.decay;
-          if (p.life <= 0) { dust[i] = spawnDust(sx, sy, maxLen, dir, spread2); continue; }
-
-          const dx = p.x - sx, dy = p.y - sy;
-          const u = dx * cosDirX + dy * sinDirY;
-          const v = Math.abs(dx * perpX + dy * perpY);
-          if (u <= 0) { dust[i] = spawnDust(sx, sy, maxLen, dir, spread2); continue; }
-          const uNorm = clamp(u / maxLen);
-          const widthAtParticle = fieldW * (0.045 + Math.pow(uNorm, 0.78) * 0.58);
-          const broadLight = smoothstep(1 - clamp(v / Math.max(1, widthAtParticle)));
-          const distF = Math.pow(1 - uNorm, 0.70 + fall * 1.15);
-
-          let streakLight = 0;
-          for (let si = 0; si < Math.min(shaftCount, 18); si++) {
-            const a = shaftAngles[si];
-            const ax = Math.cos(a), ay = Math.sin(a);
-            const nx = -ay, ny = ax;
-            const su = dx * ax + dy * ay;
-            if (su <= 0) continue;
-            const sv = Math.abs(dx * nx + dy * ny);
-            const seed = shaftSeeds[si % 32];
-            const shaftW = fieldW * seed.widthMul * (0.020 + Math.pow(clamp(su / maxLen), 0.72) * 0.20);
-            streakLight = Math.max(streakLight, smoothstep(1 - clamp(sv / Math.max(1, shaftW))) * seed.intensity);
-          }
-
-          const localLight = broadLight * (0.42 + streakLight * 0.80);
-          const alpha = p.life * localLight * distF * (dustAmount / 100) * opa * 0.42;
-          if (alpha < 0.006) continue;
-
-          const dr = p.size * (1.35 + soft * 1.25) * (atmosphereMode === 'underwater' ? 1.35 : 1);
-          const dg = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, dr);
-          // Particle color: mix ray/haze color based on blend
-          const pRgb = mixRgb(mixRgb(rayRgb, glowRgb, streakLight * 0.22), hazeRgb, blendFrac * 0.55);
-          dg.addColorStop(0,    rgba(pRgb, alpha));
-          dg.addColorStop(0.45, rgba(pRgb, alpha * 0.28));
-          dg.addColorStop(1,    'rgba(0,0,0,0)');
-          ctx.fillStyle = dg;
-          ctx.beginPath(); ctx.arc(p.x, p.y, dr, 0, Math.PI * 2); ctx.fill();
+      // Underwater: wide ambient volume fill as soft sheets — replaces the blob-generating liquid shafts.
+      // Low alpha, low blur, spread across the full fan to simulate the ambient scatter between crisp shafts.
+      if (underwater) {
+        for (let i = 0; i < 5; i++) {
+          const seed = shaftSeeds[(i * 4 + 2) % shaftSeeds.length];
+          const slot = i / 4 - 0.5;
+          const uwAngle = dir + slot * halfSpread * 1.05 + (fbm(i * 0.7, motionPhase * 0.25 + seed.phase, 233, 2) - 0.5) * halfSpread * 0.15 * motionScale + globalFanSweep;
+          const uwRgb = mixRgb(rayRgb, hazeRgb, 0.30 + Math.abs(slot) * 0.15);
+          const uwW = fieldW * (0.18 + soft * 0.12) * seed.width;
+          // These are the ambient inter-shaft glow, kept faint and crisp
+          drawShaftPlane(shaftCtx, sx, sy, uwAngle, maxLen * 1.02, uwW * 0.06, uwW * 1.8, uwRgb, lightAlpha * haze * seed.intensity * 0.12, {
+            startT: 0.02, endT: 0.98, nearFade: 0.10, farFade: 0.22, fallPower: 0.65, slices: 1, blur: 6 + soft * 8,
+            noiseBreak: { u: seed.phase + wavePhase * 0.06, v: seed.slot }, noiseBreakStr: 0.30,
+          });
         }
+      }
+
+      // Source convergence erase (underwater only) — all shafts converge at (sx,sy), creating
+      // a hard starburst of edges right at the light point.  Erase the centre of shaftLayer
+      // with a soft radial so those convergence lines dissolve into the source bloom.
+      if (underwater) {
+        shaftCtx.save();
+        shaftCtx.globalCompositeOperation = 'destination-out';
+        const srcEraseR = Math.min(W, H) * (0.10 + soft * 0.08);
+        const srcErase = shaftCtx.createRadialGradient(sx, sy, 0, sx, sy, srcEraseR);
+        srcErase.addColorStop(0.00, 'rgba(255,255,255,0.90)');
+        srcErase.addColorStop(0.50, 'rgba(255,255,255,0.40)');
+        srcErase.addColorStop(1.00, 'rgba(255,255,255,0)');
+        shaftCtx.fillStyle = srcErase;
+        shaftCtx.beginPath();
+        shaftCtx.arc(sx, sy, srcEraseR, 0, Math.PI * 2);
+        shaftCtx.fill();
+        shaftCtx.restore();
+      }
+
+      // Optical falloff mask — underwater uses a slower fade so shafts reach the frame bottom.
+      shaftCtx.save();
+      shaftCtx.globalCompositeOperation = 'destination-in';
+      const mask = shaftCtx.createLinearGradient(
+        sx - ax * maxLen * 0.02,
+        sy - ay * maxLen * 0.02,
+        sx + ax * maxLen * 0.98,
+        sy + ay * maxLen * 0.98,
+      );
+      if (underwater) {
+        mask.addColorStop(0.00, 'rgba(255,255,255,0)');
+        mask.addColorStop(0.04, 'rgba(255,255,255,0.95)');
+        mask.addColorStop(0.12, 'rgba(255,255,255,1)');
+        mask.addColorStop(0.60, 'rgba(255,255,255,0.92)');
+        mask.addColorStop(0.82, 'rgba(255,255,255,0.52)');
+        mask.addColorStop(0.95, 'rgba(255,255,255,0.08)');
+        mask.addColorStop(1.00, 'rgba(255,255,255,0)');
+      } else {
+        mask.addColorStop(0.00, 'rgba(255,255,255,0)');
+        mask.addColorStop(0.06, 'rgba(255,255,255,0.92)');
+        mask.addColorStop(0.22, 'rgba(255,255,255,1)');
+        mask.addColorStop(0.52, 'rgba(255,255,255,0.78)');
+        mask.addColorStop(0.74, 'rgba(255,255,255,0.28)');
+        mask.addColorStop(0.90, 'rgba(255,255,255,0.04)');
+        mask.addColorStop(1.00, 'rgba(255,255,255,0)');
+      }
+      shaftCtx.fillStyle = mask;
+      shaftCtx.fillRect(0, 0, W, H);
+      shaftCtx.restore();
+
+      ctx.drawImage(shaftLayer.canvas, 0, 0);
+
+      if (underwater) {
+        // Post-pass blur composite: softens shaft edges without per-slice halo seams
+        ctx.filter = `blur(${Math.round(8 + soft * 10)}px)`;
+        ctx.globalAlpha = 0.28;
+        ctx.drawImage(shaftLayer.canvas, 0, 0);
+        ctx.filter = 'none';
+        ctx.globalAlpha = 1;
+      }
+
+      if (underwater) {
+        // Ambient water column volume — large, soft, low-alpha
+        const liquidRgb = mixRgb(rayRgb, hazeRgb, 0.34);
+        ellipseGlow(ctx, sx + ax * maxLen * 0.38, sy + ay * maxLen * 0.38,
+          maxLen * 0.35, fieldW * 0.55, dir, liquidRgb, lightAlpha * haze * 0.18, [0.28, 0.012]);
+        ellipseGlow(ctx, sx + ax * maxLen * 0.55, sy + ay * maxLen * 0.55,
+          maxLen * 0.38, fieldW * 0.90, dir, hazeRgb, lightAlpha * haze * 0.10, [0.28, 0.008]);
+
+        // Surface caustic shimmer — bright irregular patches that travel along shafts.
+        // These are the characteristic water-surface refraction pattern.
+        const causticRgb = mixRgb(glowRgb, rayRgb, 0.28);
+        const CAUSTIC_COUNT = 20;
+        for (let ci = 0; ci < CAUSTIC_COUNT; ci++) {
+          const p = particleSeeds[(ci * 7 + 4) % particleSeeds.length];
+          // Drift along shaft direction, looping
+          const driftU = fract(p.dist * 0.82 + wavePhase * (0.08 + p.speed * 0.06));
+          const side = p.side * 0.62;
+          const pulse = 0.35 + 0.65 * Math.abs(Math.sin(wavePhase * (1.4 + p.type * 2.2) + p.phase));
+          const cx = sx + ax * maxLen * driftU + (-ay) * side * fieldW;
+          const cy = sy + ay * maxLen * driftU + ax * side * fieldW;
+          const cr = fieldW * (0.028 + p.size * 0.055);
+          const ca = lightAlpha * haze * pulse * Math.pow(1 - driftU, 0.45) * smoothstep(1 - Math.abs(side) / 0.68) * 0.28;
+          if (ca < 0.005) continue;
+          ellipseGlow(ctx, cx, cy, cr * 2.8, cr, dir + p.side * 0.22, causticRgb, ca, [0.20, 0.02]);
+        }
+      }
+
+      drawAtmosphericWisps(
+        ctx,
+        sx,
+        sy,
+        dir,
+        maxLen,
+        fieldW,
+        rayRgb,
+        hazeRgb,
+        lightAlpha * haze * (0.70 + noiseStr * 0.45),
+        particleSeeds,
+        flowTime,
+        atmo,
+        atmosphereMode,
+      );
+
+      // Sparse large bokeh motes for dark-atmosphere modes (the drifting orbs visible in clean/dark references)
+      if (atmosphereMode === 'clean' || atmosphereMode === 'smoky' || atmosphereMode === 'foggy' || atmosphereMode === 'misty') {
+        const moteCount = atmosphereMode === 'clean' ? 6 : 4;
+        for (let m = 0; m < moteCount; m++) {
+          const p = particleSeeds[(m * 11 + 3) % particleSeeds.length];
+          const drift = fract(p.dist * 0.6 + flowTime * (0.008 + p.speed * 0.012));
+          const side  = p.side * 1.10;
+          const x = sx + ax * maxLen * drift + (-ay) * side * fieldW;
+          const y = sy + ay * maxLen * drift + ax * side * fieldW;
+          const r = Math.min(W, H) * (0.022 + p.size * 0.038);
+          const fadeDist = Math.pow(1 - drift, 0.5) * smoothstep(1 - Math.abs(side) / 1.1);
+          const moteRgb = mixRgb(hazeRgb, glowRgb, 0.55 + p.type * 0.35);
+          const ma = lightAlpha * haze * fadeDist * (0.18 + p.size * 0.22) * 0.55;
+          if (ma < 0.004) continue;
+          ellipseGlow(ctx, x, y, r * 1.8, r, dir + p.side * 0.4, moteRgb, ma, [0.25, 0.02]);
+        }
+      }
+
+      // Dust and particulate. It is deterministic so browsers stay in sync.
+      // dustAmount controls density, pSizeMul/pBrightMul scale size and brightness.
+      drawAtmosphericDust(
+        ctx,
+        sx,
+        sy,
+        dir,
+        maxLen,
+        fieldW,
+        rayRgb,
+        glowRgb,
+        lightAlpha * (dustAmount / 100) * atmo.dust * 0.42,
+        particleSeeds,
+        flowTime * 1.24,
+        atmo,
+        atmosphereMode,
+        pSizeMul,
+        pBrightMul,
+      );
+
+      // Micro particle layer — atmosphere-specific tiny floating specks
+      drawMicroParticles(
+        ctx,
+        sx, sy,
+        dir,
+        W, H,
+        maxLen,
+        fieldW,
+        rayRgb,
+        glowRgb,
+        lightAlpha * (dustAmount / 100),
+        particleSeeds,
+        flowTime * 0.86,
+        atmo,
+        atmosphereMode,
+        pSizeMul,
+        pBrightMul,
+      );
+
+      // Source glow and directional source scatter.
+      const glowStr = (sourceGlow / 100) * lightAlpha;
+      if (glowStr > 0.004) {
+        const baseR = Math.min(W, H);
+        const hotR = baseR * (0.055 + glowStr * 0.082);
+        const hot = ctx.createRadialGradient(sx, sy, 0, sx, sy, hotR);
+        hot.addColorStop(0, rgba(glowRgb, Math.min(0.92, glowStr * 1.55)));
+        hot.addColorStop(0.22, rgba(mixRgb(glowRgb, rayRgb, 0.35), glowStr * 0.80));
+        hot.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = hot;
+        ctx.beginPath();
+        ctx.arc(sx, sy, hotR, 0, Math.PI * 2);
+        ctx.fill();
+
+        ellipseGlow(
+          ctx,
+          sx + ax * baseR * 0.040,
+          sy + ay * baseR * 0.040,
+          baseR * (0.22 + glowStr * 0.20),
+          baseR * (0.07 + glowStr * 0.10),
+          dir,
+          mixRgb(rayRgb, glowRgb, 0.36),
+          glowStr * 0.36,
+          [0.20, 0.015],
+        );
+        ellipseGlow(
+          ctx,
+          sx + ax * baseR * 0.13,
+          sy + ay * baseR * 0.13,
+          baseR * (0.24 + glowStr * 0.12),
+          baseR * (0.038 + glowStr * 0.050),
+          dir,
+          mixRgb(rayRgb, glowRgb, 0.28),
+          glowStr * 0.16,
+          [0.16, 0.010],
+        );
       }
 
       ctx.restore();
