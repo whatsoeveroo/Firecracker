@@ -351,48 +351,63 @@ export const BUILT_IN_PRESETS = {
 
   smoke: [
     {
+      // Gentle rising campfire smoke — wide, lazy, warm-toned
       name: 'Campfire',
       params: {
-        amount: 55, scale: 58, spread: 52, verticalLift: 55, direction: 270,
-        breakup: 55, wisps: 35, turbulence: 42, detail: 38,
-        speed: 35, drift: 14, expansion: 48, dissipation: 38,
-        opacity: 62, softness: 65, tone: 42, temperature: 48,
+        amount: 55, scale: 68, length: 72, direction: 275, spread: 42,
+        speed: 28, drift: 38, lift: 65, expansion: 52, dissipation: 35,
+        turbulence: 48, breakup: 42, wisps: 38, detail: 32,
+        opacity: 68, tone: 48, temperature: 62, backlight: 22, softness: 74,
       },
     },
     {
+      // Narrow tall chimney column — straight up, low drift
       name: 'Chimney',
       params: {
-        amount: 38, scale: 28, spread: 14, verticalLift: 90, direction: 270,
-        breakup: 38, wisps: 45, turbulence: 22, detail: 22,
-        speed: 28, drift: 8, expansion: 30, dissipation: 26,
-        opacity: 58, softness: 72, tone: 35, temperature: 35,
+        amount: 40, scale: 55, length: 88, direction: 272, spread: 16,
+        speed: 38, drift: 12, lift: 88, expansion: 38, dissipation: 28,
+        turbulence: 24, breakup: 32, wisps: 52, detail: 24,
+        opacity: 62, tone: 36, temperature: 38, backlight: 10, softness: 76,
       },
     },
     {
+      // Horizontal trailing smoke plume — fast, wind-blown, dissipating
       name: 'Smoke Trail',
       params: {
-        amount: 36, scale: 42, spread: 22, verticalLift: 42, direction: 10,
-        breakup: 52, wisps: 58, turbulence: 58, detail: 38,
-        speed: 58, drift: 68, expansion: 46, dissipation: 68,
-        opacity: 55, softness: 72, tone: 38, temperature: 28,
+        amount: 38, scale: 58, length: 58, direction: 8, spread: 20,
+        speed: 62, drift: 78, lift: 28, expansion: 55, dissipation: 72,
+        turbulence: 62, breakup: 55, wisps: 65, detail: 40,
+        opacity: 55, tone: 40, temperature: 30, backlight: 8, softness: 70,
       },
     },
     {
+      // High-pressure steam — bright white, fast rising, billowy
       name: 'Steam Vent',
       params: {
-        amount: 58, scale: 32, spread: 18, verticalLift: 94, direction: 270,
-        breakup: 28, wisps: 68, turbulence: 52, detail: 28,
-        speed: 78, drift: 4, expansion: 62, dissipation: 78,
-        opacity: 48, softness: 78, tone: 80, temperature: 60,
+        amount: 62, scale: 48, length: 70, direction: 270, spread: 22,
+        speed: 82, drift: 8, lift: 92, expansion: 68, dissipation: 82,
+        turbulence: 55, breakup: 22, wisps: 72, detail: 28,
+        opacity: 52, tone: 82, temperature: 58, backlight: 30, softness: 80,
       },
     },
     {
+      // Gun blast — fast burst, dark gunpowder, quick dissipation
       name: 'Muzzle Smoke',
       params: {
-        amount: 65, scale: 35, spread: 28, verticalLift: 58, direction: 300,
-        breakup: 62, wisps: 48, turbulence: 55, detail: 42,
-        speed: 75, drift: 22, expansion: 65, dissipation: 85,
-        opacity: 58, softness: 58, tone: 38, temperature: 32,
+        amount: 72, scale: 52, length: 44, direction: 295, spread: 32,
+        speed: 88, drift: 28, lift: 52, expansion: 72, dissipation: 92,
+        turbulence: 58, breakup: 68, wisps: 44, detail: 45,
+        opacity: 62, tone: 32, temperature: 28, backlight: 6, softness: 62,
+      },
+    },
+    {
+      // Dense rubber tire smoke — low, heavy, flat-spreading, cool gray
+      name: 'Tire Smoke',
+      params: {
+        amount: 85, scale: 85, length: 50, direction: 358, spread: 58,
+        speed: 45, drift: 55, lift: 18, expansion: 62, dissipation: 48,
+        turbulence: 38, breakup: 35, wisps: 22, detail: 20,
+        opacity: 80, tone: 28, temperature: 18, backlight: 5, softness: 68,
       },
     },
   ],

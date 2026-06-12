@@ -1,284 +1,448 @@
-let globalTime = 0;
+/**
+ * smoke.js — Cinematic layered plume renderer  (quality pass 5)
+ *
+ * Core fixes over pass 4:
+ *   • Blob system rework: 14–17 per large puff, spread ±0.40×, radius 0.40–0.75×,
+ *     per-blob alpha 0.08–0.48 — individually invisible, collectively dense.
+ *     Tight gradient (drops to 0.04 by 55% radius) means visible zone is inner 40%
+ *     only, so overlapping blobs merge seamlessly with no circle boundary showing.
+ *   • Macro blobs: 2–3 large (0.70–1.10×), very-low-alpha (0.04–0.09) anchor shapes
+ *     that define each puff's overall lobe silhouette. Replace the ghost envelope.
+ *   • Ghost envelope removed — it was producing a clean circular halo.
+ *   • Puff elongation: independent stretchX / stretchY (0.65–1.45 each) per puff
+ *     at spawn → flat, tall, wide, round puffs — 4–6 distinct silhouettes.
+ *   • Variable wisp length: wispSteps 4–8 stored per particle → short curly
+ *     source wisps vs long drifting tail tendrils look genuinely different.
+ */
 
-// Multi-octave sine noise — lightweight Perlin substitute
-function noise2d(x, y, t) {
+let smokeTime = 0;
+
+// ── Noise ────────────────────────────────────────────────────────────────
+function sn(x, y, t) {
   return (
-    Math.sin(x * 0.013 + y * 0.009 + t * 0.28) * 0.50 +
-    Math.sin(x * 0.027 + y * 0.021 + t * 0.43 + 1.4) * 0.28 +
-    Math.sin(x * 0.054 + y * 0.043 + t * 0.71 + 2.3) * 0.14 +
-    Math.sin(x * 0.108 + y * 0.085 + t * 1.12 + 0.9) * 0.08
+    Math.sin(x * 0.013 + y * 0.009 + t * 0.25) * 0.52 +
+    Math.sin(x * 0.027 + y * 0.019 + t * 0.40 + 1.4) * 0.30 +
+    Math.sin(x * 0.054 + y * 0.038 + t * 0.65 + 2.9) * 0.18
   );
 }
 
-function warpedCurl(x, y, t) {
-  const wx = x + noise2d(y, x, t + 1.2) * 18;
-  const wy = y + noise2d(x, y, t + 3.7) * 18;
+function curl(px, py, t) {
   return {
-    nx: noise2d(wx, wy, t),
-    ny: noise2d(wy, wx, t + 5.1),
+    cx: -sn(px + 47.2, py + 31.8, t + 2.0),
+    cy:  sn(px, py, t),
   };
 }
 
-function makeCluster(isLarge, isWisp) {
-  const count = isLarge ? 11 : isWisp ? 4 : 7;
+// ── Seed generators ──────────────────────────────────────────────────────
+
+/**
+ * Body blobs — many, tightly overlapping, individually very transparent.
+ * Dense pockets (28%): small radius, al 0.28–0.48 — bright internal spots.
+ * Light fill (72%): larger radius, al 0.08–0.22 — soft surrounding volume.
+ * Key: tight gradient profile means visible zone is inner 40% of draw radius.
+ * Neighbours overlap in that inner zone → clean merge, no circle boundary.
+ */
+function makeBlobSeeds(count) {
   return Array.from({ length: count }, () => {
-    const ang  = Math.random() * Math.PI * 2;
-    const dist = Math.sqrt(Math.random()); // sqrt = uniform disk distribution
+    const dense = Math.random() < 0.28;
     return {
-      nx:  Math.cos(ang) * dist * 0.92,   // normalized offset from center (−1..1)
-      ny:  Math.sin(ang) * dist * 0.92,
-      sz:  0.50 + Math.random() * 0.50,   // blob size relative to particle radius
-      al:  0.60 + Math.random() * 0.40,   // per-blob opacity multiplier
-      ph:  Math.random() * Math.PI * 2,   // wobble phase
-      ws:  (Math.random() - 0.5) * 0.055, // wobble angular speed
+      nx:   (Math.random() - 0.5) * 0.80,    // ±0.40× curSize
+      ny:   (Math.random() - 0.5) * 0.80,
+      sz:   dense
+              ? 0.40 + Math.random() * 0.22   // dense: 0.40–0.62×
+              : 0.38 + Math.random() * 0.34,  // light: 0.38–0.72×
+      al:   dense
+              ? 0.28 + Math.random() * 0.20   // dense: 0.28–0.48
+              : 0.08 + Math.random() * 0.14,  // light: 0.08–0.22
+      dense,
+      ph:   Math.random() * Math.PI * 2,
+      ws:   (Math.random() - 0.5) * 0.011,
     };
   });
 }
 
-function makeHoles(count) {
-  return Array.from({ length: count }, () => {
-    const ang  = Math.random() * Math.PI * 2;
-    const dist = 0.15 + Math.random() * 0.65;
-    return {
-      nx:  Math.cos(ang) * dist,
-      ny:  Math.sin(ang) * dist,
-      sz:  0.12 + Math.random() * 0.20,
-      ph:  Math.random() * Math.PI * 2,
-      ws:  (Math.random() - 0.5) * 0.035,
-    };
-  });
+/**
+ * Macro blobs — 2–3 large, extremely soft shapes per puff.
+ * Radius 0.70–1.10× curSize, alpha 0.04–0.09.
+ * They define the puff's overall lobe silhouette (wide, tall, rounded, etc.)
+ * without any visible circular boundary — like fog, not circles.
+ */
+function makeMacroSeeds(count) {
+  return Array.from({ length: count }, () => ({
+    nx:   (Math.random() - 0.5) * 0.90,    // ±0.45× curSize offset
+    ny:   (Math.random() - 0.5) * 0.90,
+    sz:   0.70 + Math.random() * 0.40,     // 0.70–1.10× curSize
+    al:   0.04 + Math.random() * 0.05,     // 0.04–0.09
+    ph:   Math.random() * Math.PI * 2,
+    ws:   (Math.random() - 0.5) * 0.006,
+  }));
 }
 
-function spawnParticle(cx, cy, params) {
-  const { scale, spread, verticalLift, direction, drift, speed, expansion, wisps } = params;
+/**
+ * Edge erosion seeds — tiny blobs at/beyond puff boundary.
+ */
+function makeErosionSeeds(count) {
+  return Array.from({ length: count }, () => ({
+    ang:   Math.random() * Math.PI * 2,
+    distF: 0.62 + Math.random() * 0.43,
+    szF:   0.07 + Math.random() * 0.14,
+    al:    0.20 + Math.random() * 0.45,
+    ph:    Math.random() * Math.PI * 2,
+    ws:    (Math.random() - 0.5) * 0.008,
+  }));
+}
 
-  const isWisp  = Math.random() < (wisps / 100) * 0.35;
-  const isLarge = !isWisp && Math.random() < 0.22;
+// ── Particle factory ─────────────────────────────────────────────────────
+function spawnPuff(cx, cy, params, kind) {
+  const { scale, direction, spread, speed, drift, lift, length, expansion } = params;
 
-  const dirRad   = (direction / 360) * Math.PI * 2;
-  const driftStr = (drift / 100) * (speed / 60) * 0.85;
-  const liftStr  = (verticalLift / 100) * (speed / 60) * 1.15;
-  const spreadRad= (spread / 100) * Math.PI * 0.85;
-  const baseSpd  = (Math.random() * 0.45 + 0.55) * (speed / 50) * 0.52;
+  const dirRad  = (direction / 360) * Math.PI * 2;
+  const halfArc = (spread / 100) * Math.PI * 0.65;
+  const angle   = dirRad + (Math.random() - 0.5) * halfArc;
 
-  const spawnAngle = -Math.PI / 2 + (Math.random() - 0.5) * spreadRad;
+  const spd    = (speed / 100) * 3.4;
+  const driftF = 0.28 + (drift / 100) * 0.72;
+  const liftF  = lift / 100;
+  const sf     = scale / 100;
+  const lenF   = 0.40 + (length / 100) * 1.20;
 
-  const sf = scale / 100;
-  let sz;
-  if (isWisp)       sz = (8  + Math.random() * 20) * sf;
-  else if (isLarge) sz = (68 + Math.random() * 82) * sf;
-  else              sz = (20 + Math.random() * 48) * sf;
-  sz = Math.max(5, sz);
+  let baseSize, blobCount, macroCount, erosionCount, wispSteps;
+
+  switch (kind) {
+    case 'large':
+      baseSize     = (14 + Math.random() * 20) * sf;
+      blobCount    = 14 + Math.floor(Math.random() * 4);  // 14–17
+      macroCount   = 2  + Math.floor(Math.random() * 2);  // 2–3
+      erosionCount = 8;
+      wispSteps    = 0;
+      break;
+    case 'medium':
+      baseSize     = (7 + Math.random() * 10) * sf;
+      blobCount    = 9  + Math.floor(Math.random() * 4);  // 9–12
+      macroCount   = 1  + Math.floor(Math.random() * 2);  // 1–2
+      erosionCount = 5;
+      wispSteps    = 0;
+      break;
+    default: // wisp
+      baseSize     = (4 + Math.random() * 8) * sf;
+      blobCount    = 0;
+      macroCount   = 0;
+      erosionCount = 0;
+      wispSteps    = 4 + Math.floor(Math.random() * 5);   // 4–8
+  }
+
+  const maxSizeMult = 3.2 + Math.random() * 1.2 + (expansion / 100) * 2.0;
+  const lifeFrames  = (55 + Math.random() * 45) * lenF;
+  const jitterR     = kind === 'large' ? 14 : kind === 'medium' ? 7 : 4;
+
+  // Independent per-axis stretch → flat, tall, wide, round puffs
+  const stretchX = 0.65 + Math.random() * 0.80;   // 0.65–1.45
+  const stretchY = 0.65 + Math.random() * 0.80;
 
   return {
-    x:        cx + (Math.random() - 0.5) * (spread / 100) * 65,
-    y:        cy + (Math.random() - 0.5) * 12,
-    vx:       Math.cos(spawnAngle) * baseSpd * 0.22 + Math.cos(dirRad) * driftStr,
-    vy:       Math.sin(spawnAngle) * baseSpd        - liftStr,
-    life:     1,
-    decay:    (isLarge ? 0.0009 : isWisp ? 0.0042 : 0.0020) + Math.random() * 0.0018,
-    size:     sz,
-    growRate: 1 + (expansion / 100) * 0.0022 + Math.random() * 0.0014,
-    rotation: Math.random() * Math.PI * 2,
-    rotSpeed: (Math.random() - 0.5) * 0.0028,
-    phase:    Math.random() * Math.PI * 2,
-    seed:     Math.random() * 80,
-    isWisp,
-    isLarge,
-    cluster:  makeCluster(isLarge, isWisp),
-    holes:    isLarge ? makeHoles(4) : (isWisp ? [] : makeHoles(2)),
+    x:     cx + (Math.random() - 0.5) * jitterR * 2,
+    y:     cy + (Math.random() - 0.5) * jitterR,
+    vx:    Math.cos(angle) * spd * driftF,
+    vy:    Math.sin(angle) * spd - liftF * spd * 1.15,
+    life:  1.0,
+    decay: 1 / lifeFrames,
+    baseSize,
+    maxSize:      baseSize * maxSizeMult,
+    travelAngle:  angle,
+    rotation:     Math.random() * Math.PI * 2,
+    rotSpeed:     (Math.random() - 0.5) * 0.0013,
+    seed:         Math.random() * 80,
+    phase:        Math.random() * Math.PI * 2,
+    kind,
+    stretchX,
+    stretchY,
+    wispSteps,
+    blobs:        blobCount    > 0 ? makeBlobSeeds(blobCount)       : [],
+    macroBlobs:   macroCount   > 0 ? makeMacroSeeds(macroCount)     : [],
+    erosionSeeds: erosionCount > 0 ? makeErosionSeeds(erosionCount) : [],
   };
 }
 
-// ── Per-particle organic blob renderer ───────────────────────
-function drawParticle(ctx, p, alpha, rC, gC, bC, softnessN, breakupN, wispsN, t) {
-  const r = p.size;
+// ── Per-puff renderer ────────────────────────────────────────────────────
+function drawPuff(ctx, p, baseAlpha, rC, gC, bC, blR, blG, blB, softnessN, backlightV, breakupN, t) {
+  const age     = 1 - p.life;
+  const growT   = Math.pow(age, 1.5);
+  const curSize = p.baseSize + (p.maxSize - p.baseSize) * growT;
+  if (curSize < 1) return;
+
   ctx.save();
   ctx.translate(p.x, p.y);
+
+  // ── WISP: path-traced tendril ────────────────────────────────────────
+  // Variable STEPS (4–8) per wisp — short source puffs vs long tail tendrils.
+  if (p.kind === 'wisp') {
+    const wAlpha = baseAlpha * 1.05;
+    if (wAlpha < 0.003) { ctx.restore(); return; }
+
+    const curlAng = sn(p.x * 0.007, p.y * 0.007, t * 0.28 + p.seed) * 0.55;
+    ctx.rotate(p.travelAngle + curlAng);
+
+    const halfLen  = curSize * (2.8 + age * 5.5);
+    const halfWid  = curSize * (0.28 + age * 0.14);
+    const STEPS    = p.wispSteps;
+
+    for (let s = 0; s < STEPS; s++) {
+      const frac = s / (STEPS - 1);
+      const px = frac * halfLen;
+      const py = sn(
+        p.x * 0.009 + frac * 1.8,
+        p.y * 0.009 + frac * 0.7,
+        t * 0.22 + p.seed + frac * 0.9
+      ) * halfWid * 2.0;
+
+      const cr = halfWid * Math.max(0.08, 1.0 - frac * 0.78);
+      const ca = wAlpha
+        * Math.pow(Math.sin(frac * Math.PI * 0.9 + 0.1), 0.7)
+        * (1.0 - frac * 0.45);
+
+      if (ca < 0.003 || cr < 0.5) continue;
+
+      const cg = ctx.createRadialGradient(px, py, 0, px, py, cr);
+      cg.addColorStop(0,    `rgba(${rC},${gC},${bC},${ca.toFixed(4)})`);
+      cg.addColorStop(0.55, `rgba(${rC},${gC},${bC},${(ca * 0.38).toFixed(4)})`);
+      cg.addColorStop(1,    `rgba(${rC},${gC},${bC},0)`);
+      ctx.fillStyle = cg;
+      ctx.beginPath();
+      ctx.arc(px, py, cr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore();
+    return;
+  }
+
+  // ── BODY PUFF ────────────────────────────────────────────────────────
   ctx.rotate(p.rotation);
+  // Per-puff stretch: flat/tall/wide/round silhouette diversity
+  ctx.scale(p.stretchX, p.stretchY);
 
-  const edgePow = 1 - softnessN * 0.7; // controls edge falloff sharpness
+  const isLarge   = p.kind === 'large';
+  const bodyAlpha = baseAlpha * (isLarge ? 0.68 : 0.82);
 
-  // ── Draw blob cluster (the organic smoke body) ─────────────
-  for (const blob of p.cluster) {
-    const wobble = Math.sin(t * 0.9 * blob.ws * 40 + blob.ph) * 0.08;
-    const bx = (blob.nx + Math.cos(blob.ph + t * 0.12) * wobble) * r;
-    const by = (blob.ny + Math.sin(blob.ph + t * 0.09) * wobble) * r;
-    const br = blob.sz * r * (p.isWisp ? 0.85 : 0.72);
-    const ba = alpha * blob.al * (p.isLarge ? 0.55 : p.isWisp ? 0.48 : 0.68);
+  // Layer 0 — Macro blobs (lobe-defining shapes, fog-soft, no circle boundary)
+  for (const m of p.macroBlobs) {
+    const wt = t * m.ws * 60 + m.ph;
+    const mx = (m.nx + Math.sin(wt) * 0.04) * curSize;
+    const my = (m.ny + Math.cos(wt * 0.72) * 0.03) * curSize;
+    const mr = m.sz * curSize;
+    const ma = bodyAlpha * m.al;
+    if (ma < 0.002 || mr < 2) continue;
 
-    if (ba < 0.004) continue;
+    const mg = ctx.createRadialGradient(mx, my, 0, mx, my, mr);
+    mg.addColorStop(0,    `rgba(${rC},${gC},${bC},${ma.toFixed(4)})`);
+    mg.addColorStop(0.45, `rgba(${rC},${gC},${bC},${(ma * 0.58).toFixed(4)})`);
+    mg.addColorStop(0.75, `rgba(${rC},${gC},${bC},${(ma * 0.15).toFixed(4)})`);
+    mg.addColorStop(1,    `rgba(${rC},${gC},${bC},0)`);
+    ctx.fillStyle = mg;
+    ctx.beginPath();
+    ctx.arc(mx, my, mr, 0, Math.PI * 2);
+    ctx.fill();
+  }
 
-    const g = ctx.createRadialGradient(bx, by, br * 0.05, bx, by, br);
-    const inner = (ba * (1 - edgePow * 0.35)).toFixed(4);
-    const outer = '0';
-    g.addColorStop(0,    `rgba(${rC},${gC},${bC},${inner})`);
-    g.addColorStop(0.50, `rgba(${rC},${gC},${bC},${(ba * 0.70).toFixed(4)})`);
-    g.addColorStop(0.82, `rgba(${rC},${gC},${bC},${(ba * 0.25).toFixed(4)})`);
-    g.addColorStop(1,    `rgba(${rC},${gC},${bC},${outer})`);
-    ctx.fillStyle = g;
+  // Layer 1 — Main blob cluster
+  // Tight gradient: visible zone is inner ~40% of draw radius.
+  // Overlapping blobs merge in that zone → no discrete circle outline.
+  for (const blob of p.blobs) {
+    const wt = t * blob.ws * 60 + blob.ph;
+    const bx = (blob.nx + Math.sin(wt)        * 0.06) * curSize;
+    const by = (blob.ny + Math.cos(wt * 0.78) * 0.05) * curSize;
+    const br = blob.sz * curSize;
+    const ba = bodyAlpha * blob.al;
+    if (ba < 0.003 || br < 1.5) continue;
+
+    let bg;
+    if (blob.dense) {
+      // Dense pocket: holds opacity to ~55% radius, then hard drop
+      bg = ctx.createRadialGradient(bx, by, br * 0.04, bx, by, br);
+      bg.addColorStop(0,    `rgba(${rC},${gC},${bC},${(ba * 1.00).toFixed(4)})`);
+      bg.addColorStop(0.30, `rgba(${rC},${gC},${bC},${(ba * 0.85).toFixed(4)})`);
+      bg.addColorStop(0.55, `rgba(${rC},${gC},${bC},${(ba * 0.30).toFixed(4)})`);
+      bg.addColorStop(0.75, `rgba(${rC},${gC},${bC},${(ba * 0.04).toFixed(4)})`);
+      bg.addColorStop(1,    `rgba(${rC},${gC},${bC},0)`);
+    } else {
+      // Light fill: very soft — nearly invisible at 45% radius
+      bg = ctx.createRadialGradient(bx, by, 0, bx, by, br);
+      bg.addColorStop(0,    `rgba(${rC},${gC},${bC},${(ba * 0.60).toFixed(4)})`);
+      bg.addColorStop(0.45, `rgba(${rC},${gC},${bC},${(ba * 0.25).toFixed(4)})`);
+      bg.addColorStop(0.72, `rgba(${rC},${gC},${bC},${(ba * 0.05).toFixed(4)})`);
+      bg.addColorStop(1,    `rgba(${rC},${gC},${bC},0)`);
+    }
+    ctx.fillStyle = bg;
     ctx.beginPath();
     ctx.arc(bx, by, br, 0, Math.PI * 2);
     ctx.fill();
   }
 
-  // ── Wisp tendrils (elongated edge streaks) ────────────────
-  if (p.isWisp && wispsN > 0.06) {
-    const wAlpha = alpha * wispsN * 0.52;
-    for (let i = 0; i < 3; i++) {
-      const blob  = p.cluster[i] || p.cluster[0];
-      const ang   = blob.ph + t * 0.11 + i * 2.1;
-      const dist  = r * (0.50 + Math.sin(t * 0.55 + p.seed + i) * 0.15);
-      const wx    = Math.cos(ang) * dist;
-      const wy    = Math.sin(ang) * dist * 0.38; // flatten horizontally
-      const wRad  = r * 0.72;
-      const wGrad = ctx.createRadialGradient(wx, wy, 0, wx, wy, wRad);
-      wGrad.addColorStop(0, `rgba(${rC},${gC},${bC},${wAlpha.toFixed(4)})`);
-      wGrad.addColorStop(1, `rgba(${rC},${gC},${bC},0)`);
-      ctx.fillStyle = wGrad;
+  // Layer 2 — Edge erosion micro-blobs
+  if (age > 0.16 && breakupN > 0.06 && p.erosionSeeds.length > 0) {
+    const erosionFade = Math.min(1, (age - 0.16) / 0.32);
+    for (const e of p.erosionSeeds) {
+      const wt  = t * e.ws * 60 + e.ph;
+      const ang = e.ang + wt;
+      const ex  = Math.cos(ang) * e.distF * curSize;
+      const ey  = Math.sin(ang) * e.distF * curSize;
+      const er  = e.szF * curSize * (1.0 + breakupN * 0.8);
+      const ea  = bodyAlpha * e.al * breakupN * erosionFade;
+      if (ea < 0.003 || er < 1) continue;
+
+      const eg = ctx.createRadialGradient(ex, ey, 0, ex, ey, er);
+      eg.addColorStop(0,    `rgba(${rC},${gC},${bC},${ea.toFixed(4)})`);
+      eg.addColorStop(0.55, `rgba(${rC},${gC},${bC},${(ea * 0.28).toFixed(4)})`);
+      eg.addColorStop(1,    `rgba(${rC},${gC},${bC},0)`);
+      ctx.fillStyle = eg;
       ctx.beginPath();
-      ctx.ellipse(wx, wy, wRad, wRad * 0.45, ang, 0, Math.PI * 2);
+      ctx.arc(ex, ey, er, 0, Math.PI * 2);
       ctx.fill();
     }
   }
 
-  // ── Breakup holes (destination-out transparency pockets) ──
-  if (breakupN > 0.15 && p.holes.length > 0) {
-    ctx.globalCompositeOperation = 'destination-out';
-    for (const hole of p.holes) {
-      const hAnim = Math.sin(t * 0.48 * hole.ws * 30 + hole.ph) * 0.12;
-      const hx    = (hole.nx + hAnim) * r;
-      const hy    = (hole.ny + hAnim * 0.6) * r;
-      const hr    = hole.sz * r * (0.7 + breakupN * 0.5);
-      const ha    = (breakupN * 0.58).toFixed(4);
-
-      const hGrad = ctx.createRadialGradient(hx, hy, 0, hx, hy, hr);
-      hGrad.addColorStop(0,    `rgba(0,0,0,${ha})`);
-      hGrad.addColorStop(0.55, `rgba(0,0,0,${(breakupN * 0.28).toFixed(4)})`);
-      hGrad.addColorStop(1,    `rgba(0,0,0,0)`);
-      ctx.fillStyle = hGrad;
+  // Layer 3 — Backlight rim
+  if (backlightV > 0.02 && age > 0.20) {
+    const rimFade  = Math.min(1, (age - 0.20) / 0.42);
+    const rimAlpha = baseAlpha * backlightV * rimFade * 0.55;
+    if (rimAlpha > 0.003) {
+      const rimIn  = curSize * (0.52 + softnessN * 0.16);
+      const rimOut = curSize * (0.92 + softnessN * 0.10);
+      const rg = ctx.createRadialGradient(0, 0, rimIn, 0, 0, rimOut);
+      rg.addColorStop(0,    `rgba(${blR},${blG},${blB},0)`);
+      rg.addColorStop(0.62, `rgba(${blR},${blG},${blB},${(rimAlpha * 0.40).toFixed(4)})`);
+      rg.addColorStop(1,    `rgba(${blR},${blG},${blB},${rimAlpha.toFixed(4)})`);
+      ctx.fillStyle = rg;
       ctx.beginPath();
-      ctx.arc(hx, hy, hr, 0, Math.PI * 2);
+      ctx.arc(0, 0, rimOut * 1.02, 0, Math.PI * 2);
       ctx.fill();
     }
-    ctx.globalCompositeOperation = 'source-over';
   }
 
   ctx.restore();
 }
 
+// ── Public factory ───────────────────────────────────────────────────────
 export function createSmokeEffect() {
   let particles = [];
-  let offscreen = null;
-  let offCtx    = null;
-
-  function ensureOffscreen(w, h) {
-    if (!offscreen || offscreen.width !== w || offscreen.height !== h) {
-      offscreen = new OffscreenCanvas(w, h);
-      offCtx    = offscreen.getContext('2d');
-    }
-  }
 
   return {
-    reset() {
-      particles = [];
-    },
+    reset() { particles = []; },
 
     update(ctx, canvas, params, dt) {
       const {
-        amount       = 50,
-        scale        = 62,
-        spread       = 60,
-        verticalLift = 45,
-        direction    = 270,
-        breakup      = 42,
-        wisps        = 30,
-        turbulence   = 28,
-        detail       = 25,
-        speed        = 38,
-        drift        = 18,
-        expansion    = 42,
-        dissipation  = 32,
-        opacity      = 62,
-        softness     = 68,
-        tone         = 54,
-        temperature  = 38,
+        amount      = 55,
+        scale       = 65,
+        length      = 65,
+        direction   = 275,
+        spread      = 35,
+        speed       = 35,
+        drift       = 50,
+        lift        = 60,
+        expansion   = 50,
+        dissipation = 40,
+        turbulence  = 35,
+        breakup     = 45,
+        wisps       = 40,
+        detail      = 30,
+        opacity     = 70,
+        tone        = 50,
+        temperature = 45,
+        backlight   = 15,
+        softness    = 72,
       } = params;
 
       const cx = canvas.width  / 2;
-      const cy = canvas.height * 0.66;
-      globalTime += dt;
+      const cy = canvas.height * 0.68;
+      smokeTime += dt;
 
-      // ── Spawn ──
-      const rate  = (amount / 100) * 5.5;
-      const spawnN= Math.floor(rate + (Math.random() < (rate % 1) ? 1 : 0));
-      for (let i = 0; i < spawnN; i++) particles.push(spawnParticle(cx, cy, params));
+      // ── Spawn ──────────────────────────────────────────────────────
+      const amtF    = amount / 100;
+      const rate    = amtF * 3.0;
+      const wispAmt = (wisps / 100) * amtF;
 
-      const maxP = Math.floor(150 + (amount / 100) * 200);
+      const rL = rate * 0.22;
+      const rM = rate * 0.62;
+      const rW = wispAmt * 0.20;
+
+      const stoch = r => Math.floor(r) + (Math.random() < r % 1 ? 1 : 0);
+
+      for (let i = 0; i < stoch(rL); i++) particles.push(spawnPuff(cx, cy, params, 'large'));
+      for (let i = 0; i < stoch(rM); i++) particles.push(spawnPuff(cx, cy, params, 'medium'));
+      for (let i = 0; i < stoch(rW); i++) particles.push(spawnPuff(cx, cy, params, 'wisp'));
+
+      const maxP = Math.floor(80 + amtF * 220);
       if (particles.length > maxP) particles.splice(0, particles.length - maxP);
 
-      // ── Update ──
-      const dissipDecay = 0.0005 + (dissipation / 100) * 0.0036;
-      const turbN       = turbulence / 100;
+      // ── Update ─────────────────────────────────────────────────────
+      const turbN   = turbulence / 100;
+      const dissipF = 0.0003 + (dissipation / 100) * 0.0028;
 
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
-        const { nx, ny } = warpedCurl(p.x * 0.016, p.y * 0.016, globalTime);
-
-        p.x  += (p.vx + nx * turbN * 1.6) * dt * 60;
-        p.y  += (p.vy + ny * turbN * 0.8) * dt * 60;
-        p.vx *= 0.991;
-        p.vy *= 0.992;
-        p.life  -= p.decay + dissipDecay;
-        p.size  *= p.growRate;
+        const { cx: ncx, cy: ncy } = curl(p.x * 0.011, p.y * 0.011, smokeTime);
+        p.x  += (p.vx + ncx * turbN * 1.4) * dt * 60;
+        p.y  += (p.vy + ncy * turbN * 0.8) * dt * 60;
+        p.vx *= 0.992;
+        p.vy *= 0.993;
+        p.life     -= (p.decay + dissipF) * dt * 60;
         p.rotation += p.rotSpeed;
-
-        if (p.life <= 0 || p.size > 550) particles.splice(i, 1);
+        if (p.life <= 0) particles.splice(i, 1);
       }
 
-      // ── Draw via offscreen canvas to isolate destination-out ──
-      const W = canvas.width;
-      const H = canvas.height;
-      ensureOffscreen(W, H);
-      offCtx.clearRect(0, 0, W, H);
+      // ── Draw ────────────────────────────────────────────────────────
+      const opacityN  = opacity     / 100;
+      const softnessN = softness    / 100;
+      const toneVal   = tone        / 100;
+      const tempVal   = temperature / 100;
+      const blV       = backlight   / 100;
+      const breakupN  = breakup     / 100;
+      const detailN   = detail      / 100;
 
-      const softnessN   = softness    / 100;
-      const breakupN    = breakup     / 100;
-      const wispsN      = wisps       / 100;
-      const opacityN    = opacity     / 100;
-      const toneVal     = tone        / 100;   // 0=dark smoke, 1=bright white
-      const tempVal     = temperature / 100;   // 0=cool blue-gray, 1=warm amber
+      // Neutral cinematic grey — symmetric around temperature=0.5
+      const grayBase  = 88 + toneVal * 82;
+      const tempShift = (tempVal - 0.5) * 44;
+      const rC = Math.round(Math.min(215, grayBase + tempShift));
+      const gC = Math.round(Math.min(215, grayBase + tempShift * 0.28));
+      const bC = Math.round(Math.min(215, grayBase - tempShift * 0.82));
 
-      // Smoke color
-      const grayBase = 82 + toneVal * 118;    // 82–200
-      const rC = Math.round(grayBase + tempVal * 44);
-      const gC = Math.round(grayBase + tempVal * 14);
-      const bC = Math.round(grayBase - tempVal * 40);
+      const blR = Math.round(Math.min(230, rC + blV * 82));
+      const blG = Math.round(Math.min(230, gC + blV * 64));
+      const blB = Math.round(Math.min(230, bC + blV * 36));
 
-      // Sort: large behind small
-      const sorted = [...particles].sort((a, b) => b.size - a.size);
-
-      offCtx.save();
-      offCtx.globalCompositeOperation = 'source-over';
-
-      for (const p of sorted) {
-        const ageFrac  = 1 - p.life;
-        const rampIn   = ageFrac < 0.12 ? ageFrac / 0.12 : 1.0;
-        const fadeOut  = Math.pow(Math.max(0, p.life), 0.58);
-        const alphaEnv = rampIn * fadeOut;
-        const a        = opacityN * alphaEnv * (p.isLarge ? 0.24 : p.isWisp ? 0.22 : 0.32);
-
-        if (a < 0.003) continue;
-
-        drawParticle(offCtx, p, a, rC, gC, bC, softnessN, breakupN, wispsN, globalTime);
-      }
-
-      offCtx.restore();
-
-      // Composite offscreen onto main canvas
       ctx.save();
       ctx.globalCompositeOperation = 'source-over';
-      ctx.drawImage(offscreen, 0, 0);
+
+      const sorted = [...particles].sort((a, b) => {
+        const order = { large: 0, medium: 1, wisp: 2 };
+        return order[a.kind] !== order[b.kind]
+          ? order[a.kind] - order[b.kind]
+          : b.baseSize - a.baseSize;
+      });
+
+      for (const p of sorted) {
+        const age = 1 - p.life;
+
+        const rampIn   = age < 0.10 ? age / 0.10 : 1.0;
+        const fadeOut  = p.life < 0.35 ? Math.pow(p.life / 0.35, 0.62) : 1.0;
+        const alphaEnv = rampIn * fadeOut;
+
+        const kindScale = p.kind === 'large'  ? 0.58
+                        : p.kind === 'medium' ? 0.78
+                        :                       0.88;
+
+        const effectiveSoftness = Math.max(0.05, softnessN - detailN * 0.25);
+        const baseAlpha = opacityN * alphaEnv * kindScale;
+        if (baseAlpha < 0.004) continue;
+
+        drawPuff(
+          ctx, p, baseAlpha,
+          rC, gC, bC, blR, blG, blB,
+          effectiveSoftness, blV, breakupN,
+          smokeTime
+        );
+      }
+
       ctx.restore();
     },
   };
