@@ -46,6 +46,7 @@ export function createEnergyPulseEffect() {
   let blastParts = [];   // particle-nova debris streams
   let curStyle = null;   // rebuild persistent structures on style change
   let glints = [];       // shared twinkling micro-specks (all styles)
+  let fogBlobs = [];     // drifting nebular plasma clouds (all styles)
   let cycleT = 0;        // time since last emission
   let flashE = 0;        // emission flash energy, decays exponentially
   let atmoE = 0;         // atmosphere energy — absorbs releases, decays slowly
@@ -182,18 +183,32 @@ export function createEnergyPulseEffect() {
     }));
   }
 
-  function buildTendrils(n) {
-    return Array.from({ length: n }, () => ({
-      ang:  Math.random() * Math.PI * 2,
-      lenF: 0.55 + Math.random() * 0.45,           // fraction of maxR
-      amp:  0.05 + Math.random() * 0.11,           // sideways sway, fraction of len
-      freq: 1.6 + Math.random() * 2.6,
-      ph:   Math.random() * Math.PI * 2,
-      spd:  0.7 + Math.random() * 1.8,
-      w:    0.7 + Math.random() * 1.7,
-      hm:   0.15 + Math.random() * 0.5,
-      pulses: [],                                   // traveling highlights {d}
-    }));
+  function buildTendrils(n, branchAmt = 0.45) {
+    return Array.from({ length: n }, () => {
+      const w = 0.7 + Math.random() * 1.7;
+      const nBranches = Math.random() < branchAmt
+        ? 1 + (Math.random() < branchAmt * 0.6 ? 1 : 0) : 0;
+      return {
+        ang:  Math.random() * Math.PI * 2,
+        lenF: 0.55 + Math.random() * 0.45,         // fraction of maxR
+        amp:  0.05 + Math.random() * 0.11,         // sideways sway, fraction of len
+        freq: 1.6 + Math.random() * 2.6,
+        ph:   Math.random() * Math.PI * 2,
+        spd:  0.7 + Math.random() * 1.8,
+        w,
+        hm:   0.15 + Math.random() * 0.5,
+        pulses: [],                                 // traveling highlights {d}
+        branches: Array.from({ length: nBranches }, () => ({
+          at:     0.25 + Math.random() * 0.50,     // fork point along the parent
+          angOff: (Math.random() < 0.5 ? -1 : 1) * (0.35 + Math.random() * 0.55),
+          lenScale: 0.35 + Math.random() * 0.35,
+          freq:   1.5 + Math.random() * 2.0,
+          ph:     Math.random() * Math.PI * 2,
+          spd:    0.8 + Math.random() * 1.5,
+          w:      w * 0.65,
+        })),
+      };
+    });
   }
 
   function buildStarRays(n) {
@@ -223,6 +238,7 @@ export function createEnergyPulseEffect() {
       blastParts = [];
       curStyle = null;
       glints = [];
+      fogBlobs = [];
       cycleT = 0;
       flashE = 0;
       atmoE = 0;
@@ -268,6 +284,9 @@ export function createEnergyPulseEffect() {
         sparkAmt:  (params.sparks     ?? 50) / 100,
         edgeHeat:  (params.edgeHeat   ?? 65) / 100,
         haze:      (params.haze       ?? 35) / 100,
+        fog:       (params.fog        ?? 45) / 100,
+        branch:    (params.branching  ?? 45) / 100,
+        cd:        (params.colorDepth ?? 55) / 100,
         coreSize:  (params.coreSize   ?? 50) / 100,
         style:     params.blastStyle  ?? 'shockwave',
       };
@@ -281,9 +300,10 @@ export function createEnergyPulseEffect() {
         if (P.style === 'plasmaOrb') {
           orbStrands = buildOrbStrands(14 + Math.round(P.sparkAmt * 10));
           // a few short interior tendrils writhing inside the shell
-          tendrils = buildTendrils(3).map(t => ({ ...t, lenF: t.lenF * 0.38, w: t.w * 0.8 }));
+          tendrils = buildTendrils(3, P.branch * 0.4)
+            .map(t => ({ ...t, lenF: t.lenF * 0.38, w: t.w * 0.8 }));
         } else if (P.style === 'tendrils') {
-          tendrils = buildTendrils(9 + Math.round(P.sparkAmt * 14));
+          tendrils = buildTendrils(9 + Math.round(P.sparkAmt * 14), P.branch);
           // faint plasma ring weaving between the filaments
           orbStrands = buildOrbStrands(5);
         } else if (P.style === 'starburst') {
@@ -314,8 +334,21 @@ export function createEnergyPulseEffect() {
 
       const main = hexToRgb(params.color ?? '#22ccff');
       const core = hexToRgb(params.coreColor ?? '#eaffff');
+      const deep = params.deepColor
+        ? hexToRgb(params.deepColor)
+        : { r: main.r >> 2, g: main.g >> 2, b: Math.round(main.b * 0.45) }; // darker fallback
       const hot  = mix(main, WHITE, 0.55 + P.edgeHeat * 0.45);
       const trail = mix(main, core, 0.15);
+
+      // layered cinematic palette: white → hot core tint → saturated main →
+      // deep fringe hue in the dimmest regions; t is local light energy 0..1
+      const deepMix = mix(main, deep, P.cd);
+      const shade = t => {
+        t = clamp01(t);
+        if (t >= 0.75) return mix(core, WHITE, (t - 0.75) / 0.25);
+        if (t >= 0.45) return mix(main, core, (t - 0.45) / 0.30);
+        return mix(deepMix, main, t / 0.45);
+      };
 
       // ── pulse cycle: charge → emit ──
       const period = 0.45 + ((100 - Math.min(100, rate)) * 0.038);
@@ -347,6 +380,20 @@ export function createEnergyPulseEffect() {
           sz: 0.4 + Math.random() * 1.1,
         }));
       }
+
+      // nebular plasma clouds — soft drifting density the filaments live in
+      if (!fogBlobs.length) {
+        fogBlobs = Array.from({ length: 16 }, () => ({
+          ang: Math.random() * Math.PI * 2,
+          rF: 0.05 + Math.pow(Math.random(), 1.4) * 0.50,
+          om: (Math.random() - 0.5) * 0.12,
+          szF: 0.09 + Math.random() * 0.16,
+          ph: Math.random() * Math.PI * 2,
+          spd: 0.3 + Math.random() * 0.8,
+          hue: Math.random(),
+        }));
+      }
+      for (const fb of fogBlobs) fb.ang += fb.om * dt;
 
       // charge glow ramps over the last portion of the cycle
       const chargeFrac = 0.25 + P.chargeUp * 0.45;
@@ -448,9 +495,9 @@ export function createEnergyPulseEffect() {
         const energy = 0.35 + charge * 0.30 + flashE * 0.55 + atmoE * 0.45;
         const breathe = 1 + atmoE * 0.06 + charge * 0.05;
         const layers = [
-          { R: (coreR * 5 + maxR * 0.10) * breathe, a: 0.50, col: mix(main, core, 0.35) },
-          { R: maxR * 0.52 * breathe,               a: 0.24, col: main },
-          { R: maxR * 0.98 * breathe,               a: 0.11, col: main },
+          { R: (coreR * 5 + maxR * 0.10) * breathe, a: 0.50, col: shade(0.62) },
+          { R: maxR * 0.52 * breathe,               a: 0.24, col: mix(main, deep, P.cd * 0.35) },
+          { R: maxR * 0.98 * breathe,               a: 0.12, col: mix(main, deep, P.cd * 0.80) },
         ];
         for (const L of layers) {
           const a = P.haze * intensity * energy * L.a;
@@ -464,6 +511,28 @@ export function createEnergyPulseEffect() {
         }
       }
 
+      // nebular plasma fog — cloudy density drifting through the field
+      if (P.fog > 0.01) {
+        for (const fb of fogBlobs) {
+          const d = fb.rF * maxR;
+          const e = exposure(d);
+          const pulseGlow = 0.5 + 0.5 * Math.sin(time * fb.spd * 0.7 + fb.ph * 2);
+          const a = P.fog * intensity * (0.020 + 0.042 * pulseGlow)
+            * (0.5 + e * 1.2 + atmoE * 0.5);
+          if (a <= 0.004) continue;
+          const px = cx + Math.cos(fb.ang) * d;
+          const py = cy + Math.sin(fb.ang) * d;
+          const R = fb.szF * maxR * (1 + 0.15 * Math.sin(time * fb.spd + fb.ph));
+          const col = mix(mix(main, deep, 0.35 + 0.40 * fb.hue), WHITE, e * 0.25);
+          const g = ctx.createRadialGradient(px, py, 0, px, py, R);
+          g.addColorStop(0, rgba(col, a));
+          g.addColorStop(0.6, rgba(col, a * 0.35));
+          g.addColorStop(1, rgba(col, 0));
+          ctx.fillStyle = g;
+          ctx.beginPath(); ctx.arc(px, py, R, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+
       // release shells — pure gradient annulus, no stroke: volumetric punch
       for (const fr of flashRings) {
         const p = fr.age / fr.maxLife;
@@ -474,8 +543,8 @@ export function createEnergyPulseEffect() {
         const rOut = r * 1.45;
         const gs = ctx.createRadialGradient(cx, cy, 0, cx, cy, rOut);
         gs.addColorStop(0, rgba(main, 0));
-        gs.addColorStop(clamp01(r * 0.5 / rOut), rgba(main, a * 0.25));
-        gs.addColorStop(clamp01(r / rOut), rgba(mix(main, WHITE, 0.3), a));
+        gs.addColorStop(clamp01(r * 0.5 / rOut), rgba(shade(0.40), a * 0.25));
+        gs.addColorStop(clamp01(r / rOut), rgba(shade(0.68), a));
         gs.addColorStop(1, rgba(main, 0));
         ctx.fillStyle = gs;
         ctx.beginPath();
@@ -492,8 +561,9 @@ export function createEnergyPulseEffect() {
         const baseA = env * intensity * wv.gain * (0.8 + wvE * 1.3);
         if (baseA <= 0.004) continue;
         const bleach = clamp01(wvE * 0.8);
-        const bodyCol = mix(main, WHITE, bleach);
+        const bodyCol = shade(0.42 + wvE * 0.45);
         const edgeCol = mix(hot, WHITE, bleach * 0.5);
+        const haloCol = mix(main, deep, P.cd * 0.5 * (1 - wvE));
 
         const distA = P.dist * 0.16 * (0.25 + x * 0.75);
         const th = thickness * (0.7 + x * 0.6);
@@ -535,7 +605,7 @@ export function createEnergyPulseEffect() {
         ];
         for (const hl of halos) {
           ctx.lineWidth = hl.w;
-          ctx.strokeStyle = rgba(main, hl.a);
+          ctx.strokeStyle = rgba(haloCol, hl.a);
           tracePath(0);
           ctx.stroke();
         }
@@ -613,40 +683,86 @@ export function createEnergyPulseEffect() {
         ctx.beginPath(); ctx.arc(cx, cy, R * 1.35, 0, Math.PI * 2); ctx.fill();
 
         const steps = quality === 'draft' ? 14 : 24;
+        const subStrands = quality === 'draft' ? 1 : 2;
         for (const st of orbStrands) {
           const a0 = st.a0 + time * st.drift;
           const baseA = intensity * (0.16 + 0.16 * Math.sin(time * st.spd + st.ph))
             * (1 + charge * 0.6 + flashE * 1.6) * strandGain;
           if (baseA <= 0.01) continue;
-          const col = mix(main, WHITE, st.hm);
-          for (const pass of [
-            { w: st.w * 4.5, a: baseA * 0.16, c: main },
-            { w: st.w,       a: baseA * 0.6,  c: col  },
-          ]) {
-            ctx.lineWidth = pass.w;
-            ctx.beginPath();
-            for (let k = 0; k <= steps; k++) {
-              const f = k / steps;
-              const a = a0 + st.span * (f - 0.5);
-              const wob = R * st.amp * (
-                0.55 * Math.sin(a * 3.1 + st.ph + time * st.spd) +
-                0.30 * Math.sin(a * 6.7 - time * st.spd * 1.6 + st.ph * 2.3) +
-                0.15 * Math.sin(a * 11.3 + time * st.spd * 0.8)
-              );
-              const r = R + wob;
-              const px = cx + Math.cos(a) * r, py = cy + Math.sin(a) * r;
-              if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-            }
-            ctx.strokeStyle = rgba(pass.c, pass.a);
-            ctx.stroke();
+
+          const strandPt = (f, braidPh, braidAmp) => {
+            const a = a0 + st.span * (f - 0.5);
+            let wob = R * st.amp * (
+              0.55 * Math.sin(a * 3.1 + st.ph + time * st.spd) +
+              0.30 * Math.sin(a * 6.7 - time * st.spd * 1.6 + st.ph * 2.3) +
+              0.15 * Math.sin(a * 11.3 + time * st.spd * 0.8)
+            );
+            if (braidAmp) wob += braidAmp * Math.sin(f * 15 + braidPh + time * st.spd * 1.3) * Math.sin(Math.PI * f);
+            const r = R + wob;
+            return { x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r };
+          };
+
+          // soft halo: one smooth wide stroke, fringe-tinted
+          ctx.lineWidth = st.w * 4.5;
+          ctx.strokeStyle = rgba(mix(main, deep, P.cd * 0.5), baseA * 0.16);
+          ctx.beginPath();
+          for (let k = 0; k <= steps; k++) {
+            const p = strandPt(k / steps, 0, 0);
+            if (k === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
           }
+          ctx.stroke();
+
+          // fuzzy braided body: sub-strands drawn per segment with noisy
+          // width/alpha so the shell reads as plasma wisps, not wires
+          ctx.lineCap = 'butt';
+          for (let s = 0; s < subStrands; s++) {
+            const braidPh = st.ph + s * 2.4;
+            const braidAmp = s === 0 ? 0 : st.w * 2.4;
+            let prev = strandPt(0, braidPh, braidAmp);
+            for (let k = 1; k <= steps; k++) {
+              const f = k / steps;
+              const pt = strandPt(f, braidPh, braidAmp);
+              const env = Math.sin(Math.PI * f); // fade strand ends
+              const wn = 0.55 + 0.45 * Math.sin(f * 19 + braidPh * 3.1 + time * 2.2);
+              const segA = baseA * (s === 0 ? 0.55 : 0.34) * env * (0.45 + 0.55 * wn);
+              if (segA > 0.008) {
+                ctx.strokeStyle = rgba(shade(0.50 + st.hm * 0.35 + wn * 0.12), segA);
+                ctx.lineWidth = Math.max(0.4, st.w * (0.55 + 0.65 * wn));
+                ctx.beginPath(); ctx.moveTo(prev.x, prev.y); ctx.lineTo(pt.x, pt.y); ctx.stroke();
+              }
+              prev = pt;
+            }
+          }
+          ctx.lineCap = 'round';
         }
       }
 
-      // tendrils — undulating filaments with highlights racing outward on release
+      // tendrils — fuzzy braided filaments with forks, white-hot roots
+      // dissolving into deep fringe color at the tips
       if (tendrils.length) {
         const tendrilGain = P.style === 'tendrils' ? 1 : 0.55;
-        const steps = quality === 'draft' ? 16 : 30;
+        const steps = quality === 'draft' ? 14 : 26;
+        const subStrands = quality === 'draft' ? 1 : quality === 'ultra' ? 3 : 2;
+
+        // draws one fuzzy strand: per-segment width taper + brightness noise
+        const drawFuzzy = (ptFn, n, baseW, aMul, rootT, tipT, seed) => {
+          ctx.lineCap = 'butt';
+          let prev = ptFn(0);
+          for (let k = 1; k <= n; k++) {
+            const f = k / n;
+            const pt = ptFn(f);
+            const wn = 0.55 + 0.45 * Math.sin(f * 17 + seed * 9.7 + time * 2.1);
+            const segA = aMul * (1 - f * 0.55) * (0.45 + 0.55 * wn);
+            if (segA > 0.008) {
+              ctx.strokeStyle = rgba(shade(rootT + (tipT - rootT) * f + wn * 0.08), segA);
+              ctx.lineWidth = Math.max(0.4, baseW * (1.5 - f) * (0.6 + 0.5 * wn));
+              ctx.beginPath(); ctx.moveTo(prev.x, prev.y); ctx.lineTo(pt.x, pt.y); ctx.stroke();
+            }
+            prev = pt;
+          }
+          ctx.lineCap = 'round';
+        };
+
         for (const t of tendrils) {
           const len = t.lenF * maxR;
           const flick = 0.55 + 0.45 * Math.sin(time * 1.8 + t.ph * 3.1);
@@ -654,54 +770,77 @@ export function createEnergyPulseEffect() {
             * (1 + charge * 0.5 + flashE * 1.2) * tendrilGain;
           if (baseA <= 0.01) continue;
           const dx = Math.cos(t.ang), dy = Math.sin(t.ang);
-          const col = mix(main, WHITE, t.hm);
-          // root-glow gradient along the filament: white-hot where it leaves
-          // the bloom, saturated color mid-way, dissolving at the tip
+
+          const sway = f => len * t.amp * Math.pow(f, 0.8) * (
+            0.6 * Math.sin(f * t.freq * 6.28 + t.ph + time * t.spd) +
+            0.35 * Math.sin(f * t.freq * 9.0 - time * t.spd * 0.7 + t.ph * 1.7)
+          );
+          const parentPt = (f, braidPh, braidAmp) => {
+            const r = coreR * 0.8 + f * len;
+            let s = sway(f);
+            if (braidAmp) s += braidAmp * Math.sin(f * 14 + braidPh + time * t.spd * 1.3) * Math.sin(Math.PI * f);
+            return { x: cx + dx * r - dy * s, y: cy + dy * r + dx * s };
+          };
+
+          // soft halo: smooth wide stroke with root-glow gradient, fringe tint
           const gx0 = cx + dx * coreR * 0.8, gy0 = cy + dy * coreR * 0.8;
           const gx1 = cx + dx * (coreR * 0.8 + len), gy1 = cy + dy * (coreR * 0.8 + len);
-          for (const pass of [
-            { w: t.w * 4.2, a: 0.18, c: main },
-            { w: t.w,       a: 0.65, c: col  },
-          ]) {
-            const aP = baseA * pass.a;
-            const g = ctx.createLinearGradient(gx0, gy0, gx1, gy1);
-            g.addColorStop(0, rgba(mix(pass.c, WHITE, 0.85), Math.min(1, aP * 1.6)));
-            g.addColorStop(0.18, rgba(mix(pass.c, WHITE, 0.40), aP * 1.15));
-            g.addColorStop(0.55, rgba(pass.c, aP * 0.8));
-            g.addColorStop(1, rgba(pass.c, aP * 0.12));
-            ctx.lineWidth = pass.w;
-            ctx.beginPath();
-            for (let k = 0; k <= steps; k++) {
-              const f = k / steps;
-              const r = coreR * 0.8 + f * len;
-              const sway = len * t.amp * Math.pow(f, 0.8) * (
-                0.6 * Math.sin(f * t.freq * 6.28 + t.ph + time * t.spd) +
-                0.35 * Math.sin(f * t.freq * 9.0 - time * t.spd * 0.7 + t.ph * 1.7)
-              );
-              const px = cx + dx * r - dy * sway;
-              const py = cy + dy * r + dx * sway;
-              if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-            }
-            ctx.strokeStyle = g;
-            ctx.stroke();
+          const gh = ctx.createLinearGradient(gx0, gy0, gx1, gy1);
+          gh.addColorStop(0, rgba(mix(main, WHITE, 0.5), baseA * 0.30));
+          gh.addColorStop(0.4, rgba(mix(main, deep, P.cd * 0.4), baseA * 0.16));
+          gh.addColorStop(1, rgba(mix(main, deep, P.cd * 0.8), baseA * 0.05));
+          ctx.lineWidth = t.w * 4.6;
+          ctx.strokeStyle = gh;
+          ctx.beginPath();
+          for (let k = 0; k <= steps; k++) {
+            const p = parentPt(k / steps, 0, 0);
+            if (k === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+          }
+          ctx.stroke();
+
+          // braided fuzzy body
+          for (let s = 0; s < subStrands; s++) {
+            const braidPh = t.ph + s * 2.1;
+            const braidAmp = s === 0 ? 0 : t.w * 2.2;
+            drawFuzzy(
+              f => parentPt(f, braidPh, braidAmp),
+              steps,
+              t.w * (s === 0 ? 1 : 0.7),
+              baseA * (s === 0 ? 0.75 : 0.45),
+              0.88, 0.14, t.ph + s,
+            );
+          }
+
+          // forks — smaller fuzzy strands leaving the parent mid-way
+          for (const br of t.branches) {
+            const start = parentPt(br.at, 0, 0);
+            const bAng = t.ang + br.angOff;
+            const bdx = Math.cos(bAng), bdy = Math.sin(bAng);
+            const bLen = len * (1 - br.at) * br.lenScale + len * 0.12;
+            drawFuzzy(
+              f => {
+                const d = f * bLen;
+                const bs = bLen * 0.13 * Math.pow(f, 0.8)
+                  * Math.sin(f * br.freq * 6.28 + br.ph + time * br.spd);
+                return { x: start.x + bdx * d - bdy * bs, y: start.y + bdy * d + bdx * bs };
+              },
+              Math.max(8, Math.round(steps * 0.6)),
+              br.w,
+              baseA * 0.55,
+              0.50, 0.08, br.ph,
+            );
           }
           // traveling release highlights — bright knots racing along the filament
           for (const pl of t.pulses) {
             if (pl.d < 0 || pl.d > 1) continue;
-            const f = pl.d;
-            const r = coreR * 0.8 + f * len;
-            const sway = len * t.amp * Math.pow(f, 0.8) * (
-              0.6 * Math.sin(f * t.freq * 6.28 + t.ph + time * t.spd) +
-              0.35 * Math.sin(f * t.freq * 9.0 - time * t.spd * 0.7 + t.ph * 1.7)
-            );
-            const px = cx + dx * r - dy * sway;
-            const py = cy + dy * r + dx * sway;
-            const ka = intensity * (1 - f * 0.6) * 0.8;
-            const g = ctx.createRadialGradient(px, py, 0, px, py, t.w * 7);
-            g.addColorStop(0, rgba(mix(col, WHITE, 0.5), ka));
-            g.addColorStop(1, rgba(main, 0));
+            const pt = parentPt(pl.d, 0, 0);
+            const ka = intensity * (1 - pl.d * 0.6) * 0.8;
+            const g = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, t.w * 7);
+            g.addColorStop(0, rgba(shade(0.92), ka));
+            g.addColorStop(0.4, rgba(shade(0.6), ka * 0.4));
+            g.addColorStop(1, rgba(deepMix, 0));
             ctx.fillStyle = g;
-            ctx.beginPath(); ctx.arc(px, py, t.w * 7, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(pt.x, pt.y, t.w * 7, 0, Math.PI * 2); ctx.fill();
           }
         }
       }
@@ -732,9 +871,10 @@ export function createEnergyPulseEffect() {
           ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(rx, ry2); ctx.stroke();
 
           const g = ctx.createLinearGradient(bx, by, tx, ty);
-          g.addColorStop(0, rgba(mix(col, WHITE, 0.9), Math.min(1, a * 1.4)));
-          g.addColorStop(0.3, rgba(col, a * 0.7));
-          g.addColorStop(1, rgba(col, 0));
+          g.addColorStop(0, rgba(shade(0.92), Math.min(1, a * 1.4)));
+          g.addColorStop(0.3, rgba(mix(col, shade(0.55), 0.5), a * 0.7));
+          g.addColorStop(0.7, rgba(shade(0.30), a * 0.35));
+          g.addColorStop(1, rgba(shade(0.18), 0));
           ctx.lineWidth = sr.w * 3.4;
           ctx.strokeStyle = rgba(main, a * 0.18);
           ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(tx, ty); ctx.stroke();
@@ -753,7 +893,7 @@ export function createEnergyPulseEffect() {
           const e = exposure(Math.hypot(bp.x - cx, bp.y - cy));
           const a = Math.pow(1 - p, 1.5) * intensity * 0.85 * (0.55 + e * 2.0);
           if (a <= 0.01) continue;
-          const col = mix(main, WHITE, clamp01(bp.hm * 0.3 + e * 0.8));
+          const col = shade(clamp01(0.35 + e * 0.55 + bp.hm * 0.15));
           ctx.lineWidth = bp.sz * (1 + e * 1.4);
           ctx.strokeStyle = rgba(col, a);
           ctx.beginPath();
@@ -772,7 +912,7 @@ export function createEnergyPulseEffect() {
         if (a <= 0.012) continue;
         const px = cx + Math.cos(gl.ang) * d;
         const py = cy + Math.sin(gl.ang) * d;
-        const col = mix(main, WHITE, 0.55 + e * 0.45);
+        const col = shade(0.55 + e * 0.4);
         const rr = gl.sz * (2 + e * 3);
         const g = ctx.createRadialGradient(px, py, 0, px, py, rr);
         g.addColorStop(0, rgba(col, Math.min(1, a)));
@@ -792,7 +932,7 @@ export function createEnergyPulseEffect() {
         const sz = m.size * (1 + m.heat * 0.8 + e * 0.8);
         const px = cx + Math.cos(m.ang) * m.r;
         const py = cy + Math.sin(m.ang) * m.r;
-        const col = mix(main, WHITE, clamp01(m.heat * 0.7 + e * 0.6));
+        const col = shade(clamp01(0.35 + e * 0.45 + m.heat * 0.35));
         const g = ctx.createRadialGradient(px, py, 0, px, py, sz * 5);
         g.addColorStop(0, rgba(col, Math.min(1, a * 1.6)));
         g.addColorStop(0.15, rgba(col, a * 0.55));
@@ -824,15 +964,15 @@ export function createEnergyPulseEffect() {
         const mx = cx + Math.cos(ry.ang) * mid - Math.sin(ry.ang) * bendOff;
         const my = cy + Math.sin(ry.ang) * mid + Math.cos(ry.ang) * bendOff;
 
-        const rayCol = mix(main, WHITE, ry.hotMix);
+        const rayCol = shade(0.55 + ry.hotMix * 0.4);
         const g = ctx.createLinearGradient(bx, by, tx, ty);
-        g.addColorStop(0, rgba(rayCol, 0));
+        g.addColorStop(0, rgba(shade(0.9), 0));
         g.addColorStop(0.3, rgba(rayCol, fade));
-        g.addColorStop(0.85, rgba(rayCol, fade * 0.55));
-        g.addColorStop(1, rgba(rayCol, 0));
+        g.addColorStop(0.85, rgba(shade(0.35), fade * 0.55));
+        g.addColorStop(1, rgba(shade(0.2), 0));
 
         ctx.lineWidth = ry.w * 3.2;
-        ctx.strokeStyle = rgba(main, fade * 0.22);
+        ctx.strokeStyle = rgba(mix(main, deep, P.cd * 0.4), fade * 0.22);
         ctx.beginPath(); ctx.moveTo(bx, by); ctx.quadraticCurveTo(mx, my, tx, ty); ctx.stroke();
 
         ctx.lineWidth = ry.w;
@@ -848,8 +988,8 @@ export function createEnergyPulseEffect() {
         if (a <= 0.01) continue;
         const tx = s.x - s.vx * 0.045, ty = s.y - s.vy * 0.045;
         const g = ctx.createLinearGradient(tx, ty, s.x, s.y);
-        g.addColorStop(0, rgba(main, 0));
-        g.addColorStop(1, rgba(mix(main, WHITE, 0.5), a));
+        g.addColorStop(0, rgba(shade(0.25), 0));
+        g.addColorStop(1, rgba(shade(0.55 + e * 0.35), a));
         ctx.strokeStyle = g;
         ctx.lineWidth = s.w;
         ctx.beginPath();
@@ -865,7 +1005,8 @@ export function createEnergyPulseEffect() {
 
       const g3 = ctx.createRadialGradient(cx, cy, 0, cx, cy, cR * 4.5);
       g3.addColorStop(0, rgba(main, coreA * 0.35));
-      g3.addColorStop(1, rgba(main, 0));
+      g3.addColorStop(0.6, rgba(mix(main, deep, P.cd * 0.45), coreA * 0.12));
+      g3.addColorStop(1, rgba(mix(main, deep, P.cd * 0.8), 0));
       ctx.fillStyle = g3;
       ctx.beginPath(); ctx.arc(cx, cy, cR * 4.5, 0, Math.PI * 2); ctx.fill();
 

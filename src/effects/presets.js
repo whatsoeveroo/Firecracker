@@ -471,6 +471,7 @@ export const BUILT_IN_PRESETS = {
       // Fast hard-hitting sci-fi blast — single front, big flash, heavy distortion
       name: 'Sci-Fi Shockwave',
       params: {
+        deepColor: '#0f3a8c', colorDepth: 50, fog: 35, branching: 20,
         blastStyle: 'shockwave',
         intensity: 92, rate: 30, waveCount: 1, chargeUp: 40, flash: 90,
         speed: 85, range: 95, thickness: 10, deceleration: 70, sharpness: 85, afterglow: 55,
@@ -483,6 +484,7 @@ export const BUILT_IN_PRESETS = {
       // Slow dramatic build-up, long charge, triple release — reactor going critical
       name: 'Reactor Charge',
       params: {
+        deepColor: '#0e4a9c', colorDepth: 60, fog: 55, branching: 30,
         blastStyle: 'shockwave',
         intensity: 88, rate: 14, waveCount: 3, chargeUp: 95, flash: 80,
         speed: 45, range: 85, thickness: 8, deceleration: 40, sharpness: 55, afterglow: 70,
@@ -495,6 +497,7 @@ export const BUILT_IN_PRESETS = {
       // Violent violet EMP — ragged, breaking apart, electric shimmer
       name: 'EMP Blast',
       params: {
+        deepColor: '#3a0f8a', colorDepth: 65, fog: 40, branching: 50,
         blastStyle: 'shockwave',
         intensity: 95, rate: 22, waveCount: 2, chargeUp: 60, flash: 100,
         speed: 75, range: 100, thickness: 6, deceleration: 55, sharpness: 70, afterglow: 40,
@@ -507,6 +510,7 @@ export const BUILT_IN_PRESETS = {
       // Clean thin sweep — no charge drama, steady cadence, instrument look
       name: 'Radar Sweep',
       params: {
+        deepColor: '#064d2e', colorDepth: 25, fog: 10, branching: 0,
         blastStyle: 'shockwave',
         intensity: 60, rate: 55, waveCount: 1, chargeUp: 0, flash: 12,
         speed: 35, range: 100, thickness: 3, deceleration: 0, sharpness: 90, afterglow: 15,
@@ -519,6 +523,7 @@ export const BUILT_IN_PRESETS = {
       // Soft golden ripple — gentle, glowing trails, floating motes
       name: 'Mystic Ripple',
       params: {
+        deepColor: '#8a4d0f', colorDepth: 60, fog: 60, branching: 30,
         blastStyle: 'shockwave',
         intensity: 75, rate: 26, waveCount: 2, chargeUp: 70, flash: 35,
         speed: 28, range: 75, thickness: 9, deceleration: 30, sharpness: 25, afterglow: 90,
@@ -531,6 +536,7 @@ export const BUILT_IN_PRESETS = {
       // Violet sphere of crawling plasma filaments — image-3 style magic orb
       name: 'Arcane Orb',
       params: {
+        deepColor: '#2d0a66', colorDepth: 70, fog: 70, branching: 45,
         blastStyle: 'plasmaOrb',
         intensity: 88, rate: 18, waveCount: 1, chargeUp: 80, flash: 45,
         speed: 40, range: 80, thickness: 6, deceleration: 40, sharpness: 40, afterglow: 60,
@@ -543,6 +549,7 @@ export const BUILT_IN_PRESETS = {
       // Purple filaments writhing outward with racing highlights
       name: 'Void Tendrils',
       params: {
+        deepColor: '#36065e', colorDepth: 75, fog: 55, branching: 70,
         blastStyle: 'tendrils',
         intensity: 90, rate: 24, waveCount: 1, chargeUp: 60, flash: 55,
         speed: 35, range: 95, thickness: 5, deceleration: 35, sharpness: 35, afterglow: 50,
@@ -555,6 +562,7 @@ export const BUILT_IN_PRESETS = {
       // Cyan core with dozens of crisp flaring light rays — reactor look
       name: 'Star Reactor',
       params: {
+        deepColor: '#072f6e', colorDepth: 60, fog: 60, branching: 20,
         blastStyle: 'starburst',
         intensity: 92, rate: 28, waveCount: 2, chargeUp: 65, flash: 85,
         speed: 60, range: 100, thickness: 5, deceleration: 50, sharpness: 75, afterglow: 35,
@@ -567,6 +575,7 @@ export const BUILT_IN_PRESETS = {
       // Deep blue debris streams erupting in clustered jets
       name: 'Particle Nova',
       params: {
+        deepColor: '#071e60', colorDepth: 65, fog: 65, branching: 25,
         blastStyle: 'particleBlast',
         intensity: 90, rate: 16, waveCount: 1, chargeUp: 75, flash: 70,
         speed: 70, range: 100, thickness: 5, deceleration: 60, sharpness: 50, afterglow: 30,
