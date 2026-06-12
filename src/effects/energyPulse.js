@@ -45,8 +45,10 @@ export function createEnergyPulseEffect() {
   let starRays = [];     // persistent reactor light rays
   let blastParts = [];   // particle-nova debris streams
   let curStyle = null;   // rebuild persistent structures on style change
+  let glints = [];       // shared twinkling micro-specks (all styles)
   let cycleT = 0;        // time since last emission
   let flashE = 0;        // emission flash energy, decays exponentially
+  let atmoE = 0;         // atmosphere energy — absorbs releases, decays slowly
   let time = 0;
   let firstFrame = true;
   let lastW = 0, lastH = 0;
@@ -67,9 +69,30 @@ export function createEnergyPulseEffect() {
       }
     }
     flashE = P.flash;
+    // the surrounding medium soaks up part of each release and glows
+    atmoE = Math.min(1.5, atmoE + 0.45 + P.flash * 0.55);
 
     // traveling highlights race outward along persistent tendrils
     for (const t of tendrils) t.pulses.push({ d: -Math.random() * 0.15 });
+
+    // shockwave fronts carry a sparse spray of micro-debris riding with them
+    if (P.style === 'shockwave') {
+      const n = Math.round(8 + P.sparkAmt * 30);
+      for (let i = 0; i < n; i++) {
+        const ang = Math.random() * Math.PI * 2;
+        const v = P.v0 * (0.75 + Math.random() * 0.45);
+        blastParts.push({
+          x: cx + Math.cos(ang) * 3,
+          y: cy + Math.sin(ang) * 3,
+          vx: Math.cos(ang) * v,
+          vy: Math.sin(ang) * v,
+          life: 0,
+          maxLife: 0.7 + Math.random() * 1.2,
+          sz: 0.4 + Math.random() * 0.9,
+          hm: Math.random(),
+        });
+      }
+    }
 
     // particle nova: clustered debris streams erupt from the core
     if (P.style === 'particleBlast') {
@@ -199,8 +222,10 @@ export function createEnergyPulseEffect() {
       starRays = [];
       blastParts = [];
       curStyle = null;
+      glints = [];
       cycleT = 0;
       flashE = 0;
+      atmoE = 0;
       time = 0;
       firstFrame = true;
     },
@@ -247,15 +272,27 @@ export function createEnergyPulseEffect() {
         style:     params.blastStyle  ?? 'shockwave',
       };
 
-      // rebuild persistent structures when the blast style changes
+      // rebuild persistent structures when the blast style changes;
+      // each style also inherits faint traces of the others so no
+      // element ever reads as an isolated layer
       if (curStyle !== P.style) {
         curStyle = P.style;
-        orbStrands = P.style === 'plasmaOrb'
-          ? buildOrbStrands(14 + Math.round(P.sparkAmt * 10)) : [];
-        tendrils = P.style === 'tendrils'
-          ? buildTendrils(9 + Math.round(P.sparkAmt * 14)) : [];
-        starRays = P.style === 'starburst'
-          ? buildStarRays(18 + Math.round(P.sparkAmt * 30)) : [];
+        orbStrands = []; tendrils = []; starRays = [];
+        if (P.style === 'plasmaOrb') {
+          orbStrands = buildOrbStrands(14 + Math.round(P.sparkAmt * 10));
+          // a few short interior tendrils writhing inside the shell
+          tendrils = buildTendrils(3).map(t => ({ ...t, lenF: t.lenF * 0.38, w: t.w * 0.8 }));
+        } else if (P.style === 'tendrils') {
+          tendrils = buildTendrils(9 + Math.round(P.sparkAmt * 14));
+          // faint plasma ring weaving between the filaments
+          orbStrands = buildOrbStrands(5);
+        } else if (P.style === 'starburst') {
+          starRays = buildStarRays(18 + Math.round(P.sparkAmt * 30));
+          orbStrands = buildOrbStrands(4);
+        } else if (P.style === 'particleBlast') {
+          // weak light beams under the debris streams
+          starRays = buildStarRays(10);
+        }
         blastParts = [];
       }
 
@@ -263,6 +300,12 @@ export function createEnergyPulseEffect() {
       const cy = h * ((params.posY ?? 50) / 100);
       const maxR = minDim * 0.55 * (range / 100);
       const coreR = minDim * (0.018 + P.coreSize * 0.05);
+
+      // shared light physics: brightness and white-bleach rise steeply
+      // toward the origin (inverse-square falloff), so every element fuses
+      // into the central bloom instead of reading as a separate layer
+      const expR0 = coreR * 2.0 + maxR * 0.10;
+      const exposure = d => 1 / (1 + (d / expR0) * (d / expR0));
 
       // Travel time across maxR sets base velocity; deceleration front-loads it
       const travelT = 3.5 - (P.speed / 100) * 2.9;
@@ -292,6 +335,18 @@ export function createEnergyPulseEffect() {
         emitPulse(P, cx, cy, maxR);
       }
       flashE *= Math.exp(-5.5 * dt);
+      atmoE *= Math.exp(-0.55 * dt);
+
+      // shared micro-glint field — tiny static specks at all distances
+      if (!glints.length) {
+        glints = Array.from({ length: 30 }, () => ({
+          ang: Math.random() * Math.PI * 2,
+          rF: 0.08 + Math.random() * 0.92,
+          ph: Math.random() * Math.PI * 2,
+          spd: 0.4 + Math.random() * 1.6,
+          sz: 0.4 + Math.random() * 1.1,
+        }));
+      }
 
       // charge glow ramps over the last portion of the cycle
       const chargeFrac = 0.25 + P.chargeUp * 0.45;
@@ -387,16 +442,26 @@ export function createEnergyPulseEffect() {
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
 
-      // ambient haze, breathing with charge and flash
+      // layered atmospheric bloom — the medium itself glows; it brightens
+      // with charge/flash and keeps glowing after each release (atmoE)
       if (P.haze > 0.01) {
-        const hazeR = maxR * (0.55 + charge * 0.12 + flashE * 0.25);
-        const hazeA = P.haze * intensity * (0.10 + charge * 0.10 + flashE * 0.30);
-        const gz = ctx.createRadialGradient(cx, cy, 0, cx, cy, hazeR);
-        gz.addColorStop(0, rgba(main, hazeA));
-        gz.addColorStop(0.6, rgba(main, hazeA * 0.4));
-        gz.addColorStop(1, rgba(main, 0));
-        ctx.fillStyle = gz;
-        ctx.fillRect(cx - hazeR, cy - hazeR, hazeR * 2, hazeR * 2);
+        const energy = 0.35 + charge * 0.30 + flashE * 0.55 + atmoE * 0.45;
+        const breathe = 1 + atmoE * 0.06 + charge * 0.05;
+        const layers = [
+          { R: (coreR * 5 + maxR * 0.10) * breathe, a: 0.50, col: mix(main, core, 0.35) },
+          { R: maxR * 0.52 * breathe,               a: 0.24, col: main },
+          { R: maxR * 0.98 * breathe,               a: 0.11, col: main },
+        ];
+        for (const L of layers) {
+          const a = P.haze * intensity * energy * L.a;
+          if (a <= 0.004) continue;
+          const gz = ctx.createRadialGradient(cx, cy, 0, cx, cy, L.R);
+          gz.addColorStop(0, rgba(L.col, a));
+          gz.addColorStop(0.55, rgba(L.col, a * 0.42));
+          gz.addColorStop(1, rgba(L.col, 0));
+          ctx.fillStyle = gz;
+          ctx.beginPath(); ctx.arc(cx, cy, L.R, 0, Math.PI * 2); ctx.fill();
+        }
       }
 
       // release shells — pure gradient annulus, no stroke: volumetric punch
@@ -423,8 +488,12 @@ export function createEnergyPulseEffect() {
         if (wv.delay > 0 || wv.r < 1) continue;
         const x = wv.r / maxR;
         const env = Math.pow(1 - x, 1.35) * Math.min(1, wv.r / (thickness * 2));
-        const baseA = env * intensity * wv.gain;
+        const wvE = exposure(wv.r);
+        const baseA = env * intensity * wv.gain * (0.8 + wvE * 1.3);
         if (baseA <= 0.004) continue;
+        const bleach = clamp01(wvE * 0.8);
+        const bodyCol = mix(main, WHITE, bleach);
+        const edgeCol = mix(hot, WHITE, bleach * 0.5);
 
         const distA = P.dist * 0.16 * (0.25 + x * 0.75);
         const th = thickness * (0.7 + x * 0.6);
@@ -505,11 +574,11 @@ export function createEnergyPulseEffect() {
           const x1 = cx + pts[j].c * r1, y1 = cy + pts[j].s * r1;
 
           ctx.lineWidth = th * 2.3;
-          ctx.strokeStyle = rgba(main, baseA * 0.26 * segIm);
+          ctx.strokeStyle = rgba(bodyCol, baseA * 0.26 * segIm);
           ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
 
           ctx.lineWidth = th * 0.95;
-          ctx.strokeStyle = rgba(main, baseA * 0.45 * segIm);
+          ctx.strokeStyle = rgba(bodyCol, baseA * 0.45 * segIm);
           ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
 
           const edgeA = edgeBase * Math.pow(segIm, 2);
@@ -517,7 +586,7 @@ export function createEnergyPulseEffect() {
             const eo = th * 0.45;
             const e0 = (wv.r + eo) * pts[i].m, e1 = (wv.r + eo) * pts[j].m;
             ctx.lineWidth = Math.max(1, th * 0.30);
-            ctx.strokeStyle = rgba(hot, edgeA);
+            ctx.strokeStyle = rgba(edgeCol, edgeA);
             ctx.beginPath();
             ctx.moveTo(cx + pts[i].c * e0, cy + pts[i].s * e0);
             ctx.lineTo(cx + pts[j].c * e1, cy + pts[j].s * e1);
@@ -528,10 +597,13 @@ export function createEnergyPulseEffect() {
       }
 
       // plasma orb — crawling filament strands wrapped around a breathing shell
-      if (P.style === 'plasmaOrb' && orbStrands.length) {
-        const R = maxR * 0.42 * (1 + charge * 0.10 + flashE * 0.20 + 0.025 * Math.sin(time * 0.9));
+      // (other styles carry a few faint strands as a woven plasma ring)
+      if (orbStrands.length) {
+        const strandGain = P.style === 'plasmaOrb' ? 1 : 0.4;
+        const R = maxR * (P.style === 'plasmaOrb' ? 0.42 : 0.32)
+          * (1 + charge * 0.10 + flashE * 0.20 + 0.025 * Math.sin(time * 0.9));
         // volumetric shell glow
-        const sa = intensity * (0.10 + charge * 0.10 + flashE * 0.30);
+        const sa = intensity * (0.10 + charge * 0.10 + flashE * 0.30) * strandGain;
         const sg = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 1.35);
         sg.addColorStop(0, rgba(main, 0));
         sg.addColorStop(clamp01(R * 0.62 / (R * 1.35)), rgba(main, sa * 0.35));
@@ -544,7 +616,7 @@ export function createEnergyPulseEffect() {
         for (const st of orbStrands) {
           const a0 = st.a0 + time * st.drift;
           const baseA = intensity * (0.16 + 0.16 * Math.sin(time * st.spd + st.ph))
-            * (1 + charge * 0.6 + flashE * 1.6);
+            * (1 + charge * 0.6 + flashE * 1.6) * strandGain;
           if (baseA <= 0.01) continue;
           const col = mix(main, WHITE, st.hm);
           for (const pass of [
@@ -572,19 +644,31 @@ export function createEnergyPulseEffect() {
       }
 
       // tendrils — undulating filaments with highlights racing outward on release
-      if (P.style === 'tendrils' && tendrils.length) {
+      if (tendrils.length) {
+        const tendrilGain = P.style === 'tendrils' ? 1 : 0.55;
         const steps = quality === 'draft' ? 16 : 30;
         for (const t of tendrils) {
           const len = t.lenF * maxR;
           const flick = 0.55 + 0.45 * Math.sin(time * 1.8 + t.ph * 3.1);
-          const baseA = intensity * (0.10 + 0.22 * flick) * (1 + charge * 0.5 + flashE * 1.2);
+          const baseA = intensity * (0.10 + 0.22 * flick)
+            * (1 + charge * 0.5 + flashE * 1.2) * tendrilGain;
           if (baseA <= 0.01) continue;
           const dx = Math.cos(t.ang), dy = Math.sin(t.ang);
           const col = mix(main, WHITE, t.hm);
+          // root-glow gradient along the filament: white-hot where it leaves
+          // the bloom, saturated color mid-way, dissolving at the tip
+          const gx0 = cx + dx * coreR * 0.8, gy0 = cy + dy * coreR * 0.8;
+          const gx1 = cx + dx * (coreR * 0.8 + len), gy1 = cy + dy * (coreR * 0.8 + len);
           for (const pass of [
-            { w: t.w * 4.2, a: 0.18, c: main, hot: false },
-            { w: t.w,       a: 0.65, c: col,  hot: true  },
+            { w: t.w * 4.2, a: 0.18, c: main },
+            { w: t.w,       a: 0.65, c: col  },
           ]) {
+            const aP = baseA * pass.a;
+            const g = ctx.createLinearGradient(gx0, gy0, gx1, gy1);
+            g.addColorStop(0, rgba(mix(pass.c, WHITE, 0.85), Math.min(1, aP * 1.6)));
+            g.addColorStop(0.18, rgba(mix(pass.c, WHITE, 0.40), aP * 1.15));
+            g.addColorStop(0.55, rgba(pass.c, aP * 0.8));
+            g.addColorStop(1, rgba(pass.c, aP * 0.12));
             ctx.lineWidth = pass.w;
             ctx.beginPath();
             for (let k = 0; k <= steps; k++) {
@@ -598,7 +682,7 @@ export function createEnergyPulseEffect() {
               const py = cy + dy * r + dx * sway;
               if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
             }
-            ctx.strokeStyle = rgba(pass.c, baseA * pass.a);
+            ctx.strokeStyle = g;
             ctx.stroke();
           }
           // traveling release highlights — bright knots racing along the filament
@@ -623,11 +707,13 @@ export function createEnergyPulseEffect() {
       }
 
       // starburst — crisp persistent reactor rays that flare on release
-      if (P.style === 'starburst' && starRays.length) {
+      if (starRays.length) {
+        const rayGain = P.style === 'starburst' ? 1 : 0.35;
         ctx.lineCap = 'round';
         for (const sr of starRays) {
           const flick = 0.5 + 0.5 * Math.sin(time * 5.5 + sr.tw) * Math.sin(time * 1.7 + sr.tw * 2.3);
-          const a = intensity * (0.07 + 0.18 * flick) * (1 + charge * 0.7 + flashE * 2.4);
+          const a = intensity * (0.07 + 0.18 * flick)
+            * (1 + charge * 0.7 + flashE * 2.4) * rayGain;
           if (a <= 0.01) continue;
           const ang = sr.ang + time * sr.drift;
           const L = sr.lenF * maxR * (1 + flashE * 0.35);
@@ -635,9 +721,19 @@ export function createEnergyPulseEffect() {
           const by = cy + Math.sin(ang) * coreR * 0.6;
           const tx = cx + Math.cos(ang) * L, ty = cy + Math.sin(ang) * L;
           const col = mix(main, WHITE, sr.hm);
+
+          // soft root beam — the ray's base dissolves into the central bloom
+          const rx = cx + Math.cos(ang) * L * 0.30, ry2 = cy + Math.sin(ang) * L * 0.30;
+          const gr = ctx.createLinearGradient(bx, by, rx, ry2);
+          gr.addColorStop(0, rgba(main, a * 0.40));
+          gr.addColorStop(1, rgba(main, 0));
+          ctx.lineWidth = sr.w * 6;
+          ctx.strokeStyle = gr;
+          ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(rx, ry2); ctx.stroke();
+
           const g = ctx.createLinearGradient(bx, by, tx, ty);
-          g.addColorStop(0, rgba(col, a));
-          g.addColorStop(0.35, rgba(col, a * 0.55));
+          g.addColorStop(0, rgba(mix(col, WHITE, 0.9), Math.min(1, a * 1.4)));
+          g.addColorStop(0.3, rgba(col, a * 0.7));
           g.addColorStop(1, rgba(col, 0));
           ctx.lineWidth = sr.w * 3.4;
           ctx.strokeStyle = rgba(main, a * 0.18);
@@ -648,15 +744,17 @@ export function createEnergyPulseEffect() {
         }
       }
 
-      // particle nova — motion-stretched debris streams
+      // particle nova — motion-stretched debris streams, white-hot near the
+      // origin and dimming/saturating as they fly out
       if (blastParts.length) {
         ctx.lineCap = 'round';
         for (const bp of blastParts) {
           const p = bp.life / bp.maxLife;
-          const a = Math.pow(1 - p, 1.5) * intensity * 0.85;
+          const e = exposure(Math.hypot(bp.x - cx, bp.y - cy));
+          const a = Math.pow(1 - p, 1.5) * intensity * 0.85 * (0.55 + e * 2.0);
           if (a <= 0.01) continue;
-          const col = mix(main, WHITE, bp.hm * 0.45);
-          ctx.lineWidth = bp.sz;
+          const col = mix(main, WHITE, clamp01(bp.hm * 0.3 + e * 0.8));
+          ctx.lineWidth = bp.sz * (1 + e * 1.4);
           ctx.strokeStyle = rgba(col, a);
           ctx.beginPath();
           ctx.moveTo(bp.x - bp.vx * 0.05, bp.y - bp.vy * 0.05);
@@ -665,15 +763,36 @@ export function createEnergyPulseEffect() {
         }
       }
 
+      // shared micro-glint field — tiny twinkling specks, exposure-scaled
+      for (const gl of glints) {
+        const d = gl.rF * maxR;
+        const e = exposure(d);
+        const tw = Math.pow(0.5 + 0.5 * Math.sin(time * gl.spd + gl.ph), 3);
+        const a = intensity * (0.04 + 0.55 * tw) * (0.30 + e * 1.7) * (0.5 + atmoE * 0.5);
+        if (a <= 0.012) continue;
+        const px = cx + Math.cos(gl.ang) * d;
+        const py = cy + Math.sin(gl.ang) * d;
+        const col = mix(main, WHITE, 0.55 + e * 0.45);
+        const rr = gl.sz * (2 + e * 3);
+        const g = ctx.createRadialGradient(px, py, 0, px, py, rr);
+        g.addColorStop(0, rgba(col, Math.min(1, a)));
+        g.addColorStop(0.3, rgba(col, a * 0.4));
+        g.addColorStop(1, rgba(col, 0));
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(px, py, rr, 0, Math.PI * 2); ctx.fill();
+      }
+
       // energy motes — pinpoint core inside a faint halo, not a uniform blob
       for (const m of motes) {
         const twk = 0.55 + 0.45 * Math.sin(time * 2.6 + m.tw);
-        const a = (0.08 + 0.30 * twk) * m.alf * intensity * (1 + m.heat * 2.0) * P.moteAmt;
+        const e = exposure(m.r);
+        const a = (0.08 + 0.30 * twk) * m.alf * intensity
+          * (1 + m.heat * 2.0) * P.moteAmt * (0.6 + e * 1.8);
         if (a <= 0.01) continue;
-        const sz = m.size * (1 + m.heat * 0.8);
+        const sz = m.size * (1 + m.heat * 0.8 + e * 0.8);
         const px = cx + Math.cos(m.ang) * m.r;
         const py = cy + Math.sin(m.ang) * m.r;
-        const col = m.heat > 0.3 ? mix(main, WHITE, m.heat * 0.7) : main;
+        const col = mix(main, WHITE, clamp01(m.heat * 0.7 + e * 0.6));
         const g = ctx.createRadialGradient(px, py, 0, px, py, sz * 5);
         g.addColorStop(0, rgba(col, Math.min(1, a * 1.6)));
         g.addColorStop(0.15, rgba(col, a * 0.55));
@@ -689,10 +808,12 @@ export function createEnergyPulseEffect() {
       for (const ry of burstRays) {
         const p = ry.life / ry.maxLife;
         const ease = 1 - Math.pow(1 - p, 3); // fast snap out
-        const fade = Math.pow(1 - p, 1.7) * intensity * (0.7 + P.flash * 0.8);
+        const base0 = coreR * (1.2 + ease * 1.0) + ease * ry.len * 0.35;
+        const fade = Math.pow(1 - p, 1.7) * intensity
+          * (0.7 + P.flash * 0.8) * (0.75 + exposure(base0) * 0.9);
         if (fade <= 0.01) continue;
 
-        const base = coreR * (1.2 + ease * 1.0) + ease * ry.len * 0.35;
+        const base = base0;
         const tip  = coreR * 1.6 + ease * ry.len;
         if (tip - base < 2) continue;
 
@@ -722,7 +843,8 @@ export function createEnergyPulseEffect() {
       // emission sparks — short streaks along their velocity
       for (const s of sparks) {
         const lf = 1 - s.life / s.maxLife;
-        const a = lf * lf * 0.8 * intensity;
+        const e = exposure(Math.hypot(s.x - cx, s.y - cy));
+        const a = lf * lf * 0.8 * intensity * (0.65 + e * 1.2);
         if (a <= 0.01) continue;
         const tx = s.x - s.vx * 0.045, ty = s.y - s.vy * 0.045;
         const g = ctx.createLinearGradient(tx, ty, s.x, s.y);
