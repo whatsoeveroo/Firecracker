@@ -79,7 +79,8 @@ export function createEnergyPulseEffect() {
       r: coreR * 1.4 + Math.random() * (maxR * 0.85 - coreR * 1.4),
       om: (Math.random() - 0.5) * 0.5,
       tw: Math.random() * Math.PI * 2,
-      size: 0.8 + Math.random() * 1.8,
+      size: 0.6 + Math.random() * 1.8,
+      alf: 0.35 + Math.random() * 0.65,
       wob: Math.random() * Math.PI * 2,
       kick: 0,
       heat: 0,
@@ -210,7 +211,6 @@ export function createEnergyPulseEffect() {
       // ── render ──
       const quality = renderOpts.quality ?? 'high';
       const SEG = quality === 'draft' ? 60 : quality === 'preview' ? 90 : 120;
-      const CHUNKS = 15;
 
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
@@ -238,10 +238,12 @@ export function createEnergyPulseEffect() {
         if (baseA <= 0.004) continue;
 
         const distA = P.dist * 0.16 * (0.25 + x * 0.75);
-        const shimA = 1 + P.shimmer * 0.22 * Math.sin(time * 18 + wv.seed);
         const th = thickness * (0.7 + x * 0.6);
+        const shimPh = time * (2 + P.shimmer * 14);
+        // how deeply the angular modulation cuts into the front
+        const modDepth = 0.30 + P.breakup * 0.60 * (0.35 + 0.65 * x);
 
-        // shared distorted shape for all passes
+        // shared distorted shape + continuous intensity modulation along it
         const pts = new Array(SEG + 1);
         for (let i = 0; i <= SEG; i++) {
           const a = (i / SEG) * Math.PI * 2;
@@ -250,66 +252,102 @@ export function createEnergyPulseEffect() {
             0.30 * Math.sin(5 * a + wv.seed * 1.7) +
             0.15 * Math.sin(9 * a + wv.seed * 0.6 + time * (1 + P.shimmer * 6))
           );
-          pts[i] = { c: Math.cos(a), s: Math.sin(a), m: mlt };
+          const raw =
+            0.50 * Math.sin(2 * a + wv.seed * 1.3) +
+            0.30 * Math.sin(5 * a + wv.seed * 2.7) +
+            0.20 * Math.sin(11 * a - shimPh + wv.seed);
+          const im = 1 - modDepth * (0.5 - 0.5 * raw);
+          pts[i] = { c: Math.cos(a), s: Math.sin(a), m: mlt, im };
         }
 
-        const passes = [
-          { off: -th * 1.5, w: th * (3.6 - P.sharp * 1.4), a: baseA * 0.30 * P.after, col: trail },
-          { off: 0,         w: th,                          a: baseA * 0.85,          col: main  },
-          { off: th * 0.45, w: Math.max(1, th * 0.38),      a: baseA * (0.35 + P.sharp * 0.65), col: hot },
+        const tracePath = off => {
+          ctx.beginPath();
+          for (let i = 0; i <= SEG; i++) {
+            const rr = (wv.r + off) * pts[i].m;
+            const px = cx + pts[i].c * rr, py = cy + pts[i].s * rr;
+            if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+          }
+        };
+
+        // volumetric halo — wide, very soft light hugging the front
+        ctx.lineCap = 'round';
+        const halos = [
+          { w: th * 5.5,  a: baseA * 0.15 },
+          { w: th * 11.5, a: baseA * 0.06 },
         ];
+        for (const hl of halos) {
+          ctx.lineWidth = hl.w;
+          ctx.strokeStyle = rgba(main, hl.a);
+          tracePath(0);
+          ctx.stroke();
+        }
 
-        const bk = P.breakup * 0.85 * (0.35 + 0.65 * x);
-        const perChunk = SEG / CHUNKS;
+        // interior illumination — the medium stays lit behind the front
+        if (P.after > 0.02) {
+          const rOut = (wv.r + th) * (1 + distA);
+          const aFill = baseA * P.after;
+          const k1 = clamp01((wv.r - th * 5.5) / rOut);
+          const k2 = clamp01((wv.r - th * 0.8) / rOut);
+          const gi = ctx.createRadialGradient(cx, cy, 0, cx, cy, rOut);
+          gi.addColorStop(0, rgba(trail, aFill * 0.04));
+          gi.addColorStop(k1, rgba(trail, aFill * 0.10));
+          gi.addColorStop(k2, rgba(trail, aFill * 0.22));
+          gi.addColorStop(1, rgba(trail, 0));
+          ctx.fillStyle = gi;
+          ctx.beginPath();
+          ctx.arc(cx, cy, rOut, 0, Math.PI * 2);
+          ctx.fill();
+        }
 
-        for (const pass of passes) {
-          if (pass.a <= 0.004) continue;
-          ctx.lineWidth = pass.w;
-          if (bk < 0.02) {
-            ctx.strokeStyle = rgba(pass.col, pass.a * shimA);
+        // body + hot edge — short butt-capped segments with smoothly varying
+        // alpha/width, so the front breathes instead of reading as a vector line
+        ctx.lineCap = 'butt';
+        const STEP = 2;
+        for (let i = 0; i < SEG; i += STEP) {
+          const j = i + STEP;
+          const segIm = (pts[i].im + pts[j].im) * 0.5;
+          if (segIm <= 0.03) continue;
+
+          const r0 = wv.r * pts[i].m, r1 = wv.r * pts[j].m;
+          const x0 = cx + pts[i].c * r0, y0 = cy + pts[i].s * r0;
+          const x1 = cx + pts[j].c * r1, y1 = cy + pts[j].s * r1;
+
+          ctx.lineWidth = th * (0.65 + 0.65 * segIm);
+          ctx.strokeStyle = rgba(main, baseA * 0.80 * segIm);
+          ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+
+          const edgeA = baseA * (0.30 + P.sharp * 0.70) * Math.pow(segIm, 1.6);
+          if (edgeA > 0.006) {
+            const eo = th * 0.45;
+            const e0 = (wv.r + eo) * pts[i].m, e1 = (wv.r + eo) * pts[j].m;
+            ctx.lineWidth = Math.max(1, th * 0.34);
+            ctx.strokeStyle = rgba(hot, edgeA);
             ctx.beginPath();
-            for (let i = 0; i <= SEG; i++) {
-              const rr = (wv.r + pass.off) * pts[i].m;
-              const px = cx + pts[i].c * rr, py = cy + pts[i].s * rr;
-              if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-            }
+            ctx.moveTo(cx + pts[i].c * e0, cy + pts[i].s * e0);
+            ctx.lineTo(cx + pts[j].c * e1, cy + pts[j].s * e1);
             ctx.stroke();
-          } else {
-            for (let cI = 0; cI < CHUNKS; cI++) {
-              const midA = ((cI + 0.5) / CHUNKS) * Math.PI * 2;
-              const gapN = Math.pow(0.5 + 0.5 * Math.sin(midA * 4 + wv.seed * 2.1), 2);
-              const segA = pass.a * shimA * (1 - bk * gapN);
-              if (segA <= 0.004) continue;
-              ctx.strokeStyle = rgba(pass.col, segA);
-              ctx.beginPath();
-              const i0 = Math.floor(cI * perChunk);
-              const i1 = Math.ceil((cI + 1) * perChunk);
-              for (let i = i0; i <= i1; i++) {
-                const rr = (wv.r + pass.off) * pts[i].m;
-                const px = cx + pts[i].c * rr, py = cy + pts[i].s * rr;
-                if (i === i0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-              }
-              ctx.stroke();
-            }
           }
         }
+        ctx.lineCap = 'round';
       }
 
-      // energy motes
+      // energy motes — pinpoint core inside a faint halo, not a uniform blob
       for (const m of motes) {
         const twk = 0.55 + 0.45 * Math.sin(time * 2.6 + m.tw);
-        const a = (0.10 + 0.30 * twk) * intensity * (1 + m.heat * 2.2) * P.moteAmt;
+        const a = (0.08 + 0.30 * twk) * m.alf * intensity * (1 + m.heat * 2.0) * P.moteAmt;
         if (a <= 0.01) continue;
-        const sz = m.size * (1 + m.heat * 1.6);
+        const sz = m.size * (1 + m.heat * 0.8);
         const px = cx + Math.cos(m.ang) * m.r;
         const py = cy + Math.sin(m.ang) * m.r;
         const col = m.heat > 0.3 ? mix(main, WHITE, m.heat * 0.7) : main;
-        const g = ctx.createRadialGradient(px, py, 0, px, py, sz * 3);
-        g.addColorStop(0, rgba(col, a));
+        const g = ctx.createRadialGradient(px, py, 0, px, py, sz * 5);
+        g.addColorStop(0, rgba(col, Math.min(1, a * 1.6)));
+        g.addColorStop(0.15, rgba(col, a * 0.55));
+        g.addColorStop(0.5, rgba(col, a * 0.12));
         g.addColorStop(1, rgba(col, 0));
         ctx.fillStyle = g;
         ctx.beginPath();
-        ctx.arc(px, py, sz * 3, 0, Math.PI * 2);
+        ctx.arc(px, py, sz * 5, 0, Math.PI * 2);
         ctx.fill();
       }
 
