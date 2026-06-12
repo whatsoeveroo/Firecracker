@@ -471,6 +471,7 @@ export const BUILT_IN_PRESETS = {
       // Fast hard-hitting sci-fi blast — single front, big flash, heavy distortion
       name: 'Sci-Fi Shockwave',
       params: {
+        blastStyle: 'shockwave',
         intensity: 92, rate: 30, waveCount: 1, chargeUp: 40, flash: 90,
         speed: 85, range: 95, thickness: 10, deceleration: 70, sharpness: 85, afterglow: 55,
         distortion: 45, breakup: 35, shimmer: 30, motes: 35, sparks: 80,
@@ -482,6 +483,7 @@ export const BUILT_IN_PRESETS = {
       // Slow dramatic build-up, long charge, triple release — reactor going critical
       name: 'Reactor Charge',
       params: {
+        blastStyle: 'shockwave',
         intensity: 88, rate: 14, waveCount: 3, chargeUp: 95, flash: 80,
         speed: 45, range: 85, thickness: 8, deceleration: 40, sharpness: 55, afterglow: 70,
         distortion: 25, breakup: 15, shimmer: 55, motes: 75, sparks: 55,
@@ -493,6 +495,7 @@ export const BUILT_IN_PRESETS = {
       // Violent violet EMP — ragged, breaking apart, electric shimmer
       name: 'EMP Blast',
       params: {
+        blastStyle: 'shockwave',
         intensity: 95, rate: 22, waveCount: 2, chargeUp: 60, flash: 100,
         speed: 75, range: 100, thickness: 6, deceleration: 55, sharpness: 70, afterglow: 40,
         distortion: 70, breakup: 65, shimmer: 80, motes: 50, sparks: 70,
@@ -504,6 +507,7 @@ export const BUILT_IN_PRESETS = {
       // Clean thin sweep — no charge drama, steady cadence, instrument look
       name: 'Radar Sweep',
       params: {
+        blastStyle: 'shockwave',
         intensity: 60, rate: 55, waveCount: 1, chargeUp: 0, flash: 12,
         speed: 35, range: 100, thickness: 3, deceleration: 0, sharpness: 90, afterglow: 15,
         distortion: 0, breakup: 0, shimmer: 8, motes: 12, sparks: 0,
@@ -515,6 +519,7 @@ export const BUILT_IN_PRESETS = {
       // Soft golden ripple — gentle, glowing trails, floating motes
       name: 'Mystic Ripple',
       params: {
+        blastStyle: 'shockwave',
         intensity: 75, rate: 26, waveCount: 2, chargeUp: 70, flash: 35,
         speed: 28, range: 75, thickness: 9, deceleration: 30, sharpness: 25, afterglow: 90,
         distortion: 35, breakup: 20, shimmer: 45, motes: 90, sparks: 25,

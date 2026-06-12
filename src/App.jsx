@@ -117,7 +117,9 @@ export default function App() {
   const handleRandomize    = useCallback(() => setParams(randomizeParams(activeEffect)), [activeEffect]);
   const handleReset        = useCallback(() => setParams(getDefaults(effectId)), [effectId]);
   const handleRestart      = useCallback(() => setRestartKey(k => k + 1), []);
-  const handlePresetLoad   = useCallback((p)    => setParams(prev => ({ ...prev, ...p })), []);
+  // Apply presets over the effect defaults, not the previous params —
+  // otherwise keys a preset doesn't define (e.g. blastStyle) stick around
+  const handlePresetLoad   = useCallback((p)    => setParams({ ...getDefaults(effectId), ...p }), [effectId]);
   const handlePresetSave   = useCallback((n, p) => setUserPresets({ ...saveUserPreset(effectId, n, p) }), [effectId]);
   const handlePresetDelete = useCallback((n)    => setUserPresets({ ...deleteUserPreset(effectId, n) }), [effectId]);
 
