@@ -40,24 +40,62 @@ export function createEnergyPulseEffect() {
   let sparks = [];       // { x, y, vx, vy, life, maxLife, w }
   let burstRays = [];    // { ang, len, bend, w, life, maxLife, hotMix }
   let flashRings = [];   // { age, maxLife } — lineless volumetric release shells
+  let orbStrands = [];   // plasma-orb shell filaments
+  let tendrils = [];     // persistent radiating energy filaments
+  let starRays = [];     // persistent reactor light rays
+  let blastParts = [];   // particle-nova debris streams
+  let curStyle = null;   // rebuild persistent structures on style change
   let cycleT = 0;        // time since last emission
   let flashE = 0;        // emission flash energy, decays exponentially
   let time = 0;
   let firstFrame = true;
+  let lastW = 0, lastH = 0;
 
   function emitPulse(P, cx, cy, maxR) {
-    const gap = 0.10 + 0.04 * Math.random();
-    for (let i = 0; i < P.waveCount; i++) {
-      waves.push({
-        r: 0,
-        v: P.v0 * (0.92 + Math.random() * 0.16),
-        age: 0,
-        delay: i * gap,
-        seed: Math.random() * 1000,
-        gain: 1 - i * 0.18,
-      });
+    // the plasma orb pulses its shell instead of throwing expanding waves
+    if (P.style !== 'plasmaOrb') {
+      const gap = 0.10 + 0.04 * Math.random();
+      for (let i = 0; i < P.waveCount; i++) {
+        waves.push({
+          r: 0,
+          v: P.v0 * (0.92 + Math.random() * 0.16),
+          age: 0,
+          delay: i * gap,
+          seed: Math.random() * 1000,
+          gain: 1 - i * 0.18,
+        });
+      }
     }
     flashE = P.flash;
+
+    // traveling highlights race outward along persistent tendrils
+    for (const t of tendrils) t.pulses.push({ d: -Math.random() * 0.15 });
+
+    // particle nova: clustered debris streams erupt from the core
+    if (P.style === 'particleBlast') {
+      const streams = 7 + Math.floor(Math.random() * 5);
+      const perStream = Math.round((60 + P.sparkAmt * 180) / streams);
+      for (let s = 0; s < streams; s++) {
+        const dirAng = Math.random() * Math.PI * 2;
+        const spread = 0.08 + Math.random() * 0.20;
+        const vMul = 0.7 + Math.random() * 0.7;
+        for (let i = 0; i < perStream; i++) {
+          const ang = dirAng + (Math.random() + Math.random() - 1) * spread;
+          const v = P.v0 * vMul * (0.30 + Math.pow(Math.random(), 1.6) * 1.3);
+          blastParts.push({
+            x: cx + Math.cos(ang) * 3,
+            y: cy + Math.sin(ang) * 3,
+            vx: Math.cos(ang) * v,
+            vy: Math.sin(ang) * v,
+            life: 0,
+            maxLife: 0.9 + Math.random() * 1.9,
+            sz: 0.5 + Math.random() * 1.5,
+            hm: Math.random(),
+          });
+        }
+      }
+      if (blastParts.length > 1300) blastParts.splice(0, blastParts.length - 1300);
+    }
 
     // lineless volumetric shell that races out and dies fast
     flashRings.push({ age: 0, maxLife: 0.26 + Math.random() * 0.12 });
@@ -107,6 +145,48 @@ export function createEnergyPulseEffect() {
     };
   }
 
+  // ── persistent blast-style structures ────────────────────────────────
+  function buildOrbStrands(n) {
+    return Array.from({ length: n }, () => ({
+      a0:   Math.random() * Math.PI * 2,
+      span: 0.7 + Math.random() * 1.8,            // arc length on the shell (rad)
+      drift:(Math.random() - 0.5) * 0.30,          // slow rotation
+      ph:   Math.random() * Math.PI * 2,
+      spd:  0.6 + Math.random() * 1.6,             // noise crawl speed
+      amp:  0.05 + Math.random() * 0.10,           // wobble, fraction of shell R
+      w:    0.7 + Math.random() * 1.6,
+      hm:   Math.random() * 0.55,
+    }));
+  }
+
+  function buildTendrils(n) {
+    return Array.from({ length: n }, () => ({
+      ang:  Math.random() * Math.PI * 2,
+      lenF: 0.55 + Math.random() * 0.45,           // fraction of maxR
+      amp:  0.05 + Math.random() * 0.11,           // sideways sway, fraction of len
+      freq: 1.6 + Math.random() * 2.6,
+      ph:   Math.random() * Math.PI * 2,
+      spd:  0.7 + Math.random() * 1.8,
+      w:    0.7 + Math.random() * 1.7,
+      hm:   0.15 + Math.random() * 0.5,
+      pulses: [],                                   // traveling highlights {d}
+    }));
+  }
+
+  function buildStarRays(n) {
+    return Array.from({ length: n }, () => {
+      const long = Math.random() < 0.25;
+      return {
+        ang:  Math.random() * Math.PI * 2,
+        lenF: (0.25 + Math.random() * 0.55) * (long ? 1.8 : 1),
+        w:    long ? 0.5 + Math.random() * 0.8 : 0.6 + Math.random() * 1.6,
+        tw:   Math.random() * Math.PI * 2,
+        hm:   0.3 + Math.random() * 0.6,
+        drift:(Math.random() - 0.5) * 0.05,
+      };
+    });
+  }
+
   return {
     reset() {
       waves = [];
@@ -114,6 +194,11 @@ export function createEnergyPulseEffect() {
       sparks = [];
       burstRays = [];
       flashRings = [];
+      orbStrands = [];
+      tendrils = [];
+      starRays = [];
+      blastParts = [];
+      curStyle = null;
       cycleT = 0;
       flashE = 0;
       time = 0;
@@ -124,6 +209,19 @@ export function createEnergyPulseEffect() {
       const w = canvas.width, h = canvas.height;
       const minDim = Math.min(w, h);
       time += dt;
+
+      // canvas was resized (e.g. first frames run on the default 300×150
+      // bitmap before ResizeObserver fires) — world-anchored transients now
+      // sit at stale coordinates, so drop them and re-arm the opening pulse
+      if (w !== lastW || h !== lastH) {
+        if (lastW > 0) {
+          waves = []; sparks = []; burstRays = []; flashRings = [];
+          blastParts = []; motes = [];
+          for (const t of tendrils) t.pulses = [];
+          firstFrame = true;
+        }
+        lastW = w; lastH = h;
+      }
 
       // ── normalize params (with fallbacks for old saved presets) ──
       const rate       = params.rate       ?? params.speed ?? 40;
@@ -146,7 +244,20 @@ export function createEnergyPulseEffect() {
         edgeHeat:  (params.edgeHeat   ?? 65) / 100,
         haze:      (params.haze       ?? 35) / 100,
         coreSize:  (params.coreSize   ?? 50) / 100,
+        style:     params.blastStyle  ?? 'shockwave',
       };
+
+      // rebuild persistent structures when the blast style changes
+      if (curStyle !== P.style) {
+        curStyle = P.style;
+        orbStrands = P.style === 'plasmaOrb'
+          ? buildOrbStrands(14 + Math.round(P.sparkAmt * 10)) : [];
+        tendrils = P.style === 'tendrils'
+          ? buildTendrils(9 + Math.round(P.sparkAmt * 14)) : [];
+        starRays = P.style === 'starburst'
+          ? buildStarRays(18 + Math.round(P.sparkAmt * 30)) : [];
+        blastParts = [];
+      }
 
       const cx = w * ((params.posX ?? 50) / 100);
       const cy = h * ((params.posY ?? 50) / 100);
@@ -167,9 +278,14 @@ export function createEnergyPulseEffect() {
       const period = 0.45 + ((100 - Math.min(100, rate)) * 0.038);
       cycleT += dt;
       if (firstFrame) {
-        // fire immediately so the effect isn't blank at t=0
-        firstFrame = false;
-        cycleT = period;
+        // fire immediately so the effect isn't blank at t=0 — but wait until
+        // the canvas has real dimensions, or the pulse emits at a bogus center
+        if (minDim > 60) {
+          firstFrame = false;
+          cycleT = period;
+        } else {
+          cycleT = 0;
+        }
       }
       if (cycleT >= period) {
         cycleT = 0;
@@ -228,6 +344,27 @@ export function createEnergyPulseEffect() {
       for (let i = flashRings.length - 1; i >= 0; i--) {
         flashRings[i].age += dt;
         if (flashRings[i].age >= flashRings[i].maxLife) flashRings.splice(i, 1);
+      }
+      for (const t of tendrils) {
+        for (let i = t.pulses.length - 1; i >= 0; i--) {
+          t.pulses[i].d += dt * 1.1;
+          if (t.pulses[i].d > 1.25) t.pulses.splice(i, 1);
+        }
+      }
+      for (let i = blastParts.length - 1; i >= 0; i--) {
+        const bp = blastParts[i];
+        bp.life += dt;
+        if (bp.life >= bp.maxLife) { blastParts.splice(i, 1); continue; }
+        bp.x += bp.vx * dt;
+        bp.y += bp.vy * dt;
+        // gentle curl so the streams billow instead of staying laser-straight
+        const sw = Math.sin(bp.x * 0.013 + bp.y * 0.011 + time * 0.7) * 26 * dt;
+        const vm = Math.hypot(bp.vx, bp.vy) + 0.001;
+        bp.vx += (-bp.vy / vm) * sw;
+        bp.vy += ( bp.vx / vm) * sw;
+        const drag = Math.exp(-0.85 * dt);
+        bp.vx *= drag;
+        bp.vy *= drag;
       }
 
       // ── update sparks ──
@@ -388,6 +525,144 @@ export function createEnergyPulseEffect() {
           }
         }
         ctx.lineCap = 'round';
+      }
+
+      // plasma orb — crawling filament strands wrapped around a breathing shell
+      if (P.style === 'plasmaOrb' && orbStrands.length) {
+        const R = maxR * 0.42 * (1 + charge * 0.10 + flashE * 0.20 + 0.025 * Math.sin(time * 0.9));
+        // volumetric shell glow
+        const sa = intensity * (0.10 + charge * 0.10 + flashE * 0.30);
+        const sg = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 1.35);
+        sg.addColorStop(0, rgba(main, 0));
+        sg.addColorStop(clamp01(R * 0.62 / (R * 1.35)), rgba(main, sa * 0.35));
+        sg.addColorStop(clamp01(R / (R * 1.35)), rgba(main, sa));
+        sg.addColorStop(1, rgba(main, 0));
+        ctx.fillStyle = sg;
+        ctx.beginPath(); ctx.arc(cx, cy, R * 1.35, 0, Math.PI * 2); ctx.fill();
+
+        const steps = quality === 'draft' ? 14 : 24;
+        for (const st of orbStrands) {
+          const a0 = st.a0 + time * st.drift;
+          const baseA = intensity * (0.16 + 0.16 * Math.sin(time * st.spd + st.ph))
+            * (1 + charge * 0.6 + flashE * 1.6);
+          if (baseA <= 0.01) continue;
+          const col = mix(main, WHITE, st.hm);
+          for (const pass of [
+            { w: st.w * 4.5, a: baseA * 0.16, c: main },
+            { w: st.w,       a: baseA * 0.6,  c: col  },
+          ]) {
+            ctx.lineWidth = pass.w;
+            ctx.beginPath();
+            for (let k = 0; k <= steps; k++) {
+              const f = k / steps;
+              const a = a0 + st.span * (f - 0.5);
+              const wob = R * st.amp * (
+                0.55 * Math.sin(a * 3.1 + st.ph + time * st.spd) +
+                0.30 * Math.sin(a * 6.7 - time * st.spd * 1.6 + st.ph * 2.3) +
+                0.15 * Math.sin(a * 11.3 + time * st.spd * 0.8)
+              );
+              const r = R + wob;
+              const px = cx + Math.cos(a) * r, py = cy + Math.sin(a) * r;
+              if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+            }
+            ctx.strokeStyle = rgba(pass.c, pass.a);
+            ctx.stroke();
+          }
+        }
+      }
+
+      // tendrils — undulating filaments with highlights racing outward on release
+      if (P.style === 'tendrils' && tendrils.length) {
+        const steps = quality === 'draft' ? 16 : 30;
+        for (const t of tendrils) {
+          const len = t.lenF * maxR;
+          const flick = 0.55 + 0.45 * Math.sin(time * 1.8 + t.ph * 3.1);
+          const baseA = intensity * (0.10 + 0.22 * flick) * (1 + charge * 0.5 + flashE * 1.2);
+          if (baseA <= 0.01) continue;
+          const dx = Math.cos(t.ang), dy = Math.sin(t.ang);
+          const col = mix(main, WHITE, t.hm);
+          for (const pass of [
+            { w: t.w * 4.2, a: 0.18, c: main, hot: false },
+            { w: t.w,       a: 0.65, c: col,  hot: true  },
+          ]) {
+            ctx.lineWidth = pass.w;
+            ctx.beginPath();
+            for (let k = 0; k <= steps; k++) {
+              const f = k / steps;
+              const r = coreR * 0.8 + f * len;
+              const sway = len * t.amp * Math.pow(f, 0.8) * (
+                0.6 * Math.sin(f * t.freq * 6.28 + t.ph + time * t.spd) +
+                0.35 * Math.sin(f * t.freq * 9.0 - time * t.spd * 0.7 + t.ph * 1.7)
+              );
+              const px = cx + dx * r - dy * sway;
+              const py = cy + dy * r + dx * sway;
+              if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+            }
+            ctx.strokeStyle = rgba(pass.c, baseA * pass.a);
+            ctx.stroke();
+          }
+          // traveling release highlights — bright knots racing along the filament
+          for (const pl of t.pulses) {
+            if (pl.d < 0 || pl.d > 1) continue;
+            const f = pl.d;
+            const r = coreR * 0.8 + f * len;
+            const sway = len * t.amp * Math.pow(f, 0.8) * (
+              0.6 * Math.sin(f * t.freq * 6.28 + t.ph + time * t.spd) +
+              0.35 * Math.sin(f * t.freq * 9.0 - time * t.spd * 0.7 + t.ph * 1.7)
+            );
+            const px = cx + dx * r - dy * sway;
+            const py = cy + dy * r + dx * sway;
+            const ka = intensity * (1 - f * 0.6) * 0.8;
+            const g = ctx.createRadialGradient(px, py, 0, px, py, t.w * 7);
+            g.addColorStop(0, rgba(mix(col, WHITE, 0.5), ka));
+            g.addColorStop(1, rgba(main, 0));
+            ctx.fillStyle = g;
+            ctx.beginPath(); ctx.arc(px, py, t.w * 7, 0, Math.PI * 2); ctx.fill();
+          }
+        }
+      }
+
+      // starburst — crisp persistent reactor rays that flare on release
+      if (P.style === 'starburst' && starRays.length) {
+        ctx.lineCap = 'round';
+        for (const sr of starRays) {
+          const flick = 0.5 + 0.5 * Math.sin(time * 5.5 + sr.tw) * Math.sin(time * 1.7 + sr.tw * 2.3);
+          const a = intensity * (0.07 + 0.18 * flick) * (1 + charge * 0.7 + flashE * 2.4);
+          if (a <= 0.01) continue;
+          const ang = sr.ang + time * sr.drift;
+          const L = sr.lenF * maxR * (1 + flashE * 0.35);
+          const bx = cx + Math.cos(ang) * coreR * 0.6;
+          const by = cy + Math.sin(ang) * coreR * 0.6;
+          const tx = cx + Math.cos(ang) * L, ty = cy + Math.sin(ang) * L;
+          const col = mix(main, WHITE, sr.hm);
+          const g = ctx.createLinearGradient(bx, by, tx, ty);
+          g.addColorStop(0, rgba(col, a));
+          g.addColorStop(0.35, rgba(col, a * 0.55));
+          g.addColorStop(1, rgba(col, 0));
+          ctx.lineWidth = sr.w * 3.4;
+          ctx.strokeStyle = rgba(main, a * 0.18);
+          ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(tx, ty); ctx.stroke();
+          ctx.lineWidth = sr.w;
+          ctx.strokeStyle = g;
+          ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(tx, ty); ctx.stroke();
+        }
+      }
+
+      // particle nova — motion-stretched debris streams
+      if (blastParts.length) {
+        ctx.lineCap = 'round';
+        for (const bp of blastParts) {
+          const p = bp.life / bp.maxLife;
+          const a = Math.pow(1 - p, 1.5) * intensity * 0.85;
+          if (a <= 0.01) continue;
+          const col = mix(main, WHITE, bp.hm * 0.45);
+          ctx.lineWidth = bp.sz;
+          ctx.strokeStyle = rgba(col, a);
+          ctx.beginPath();
+          ctx.moveTo(bp.x - bp.vx * 0.05, bp.y - bp.vy * 0.05);
+          ctx.lineTo(bp.x, bp.y);
+          ctx.stroke();
+        }
       }
 
       // energy motes — pinpoint core inside a faint halo, not a uniform blob

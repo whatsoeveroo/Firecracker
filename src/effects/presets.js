@@ -522,6 +522,54 @@ export const BUILT_IN_PRESETS = {
         posX: 50, posY: 50, coreSize: 50,
       },
     },
+    {
+      // Violet sphere of crawling plasma filaments — image-3 style magic orb
+      name: 'Arcane Orb',
+      params: {
+        blastStyle: 'plasmaOrb',
+        intensity: 88, rate: 18, waveCount: 1, chargeUp: 80, flash: 45,
+        speed: 40, range: 80, thickness: 6, deceleration: 40, sharpness: 40, afterglow: 60,
+        distortion: 50, breakup: 25, shimmer: 60, motes: 65, sparks: 70,
+        color: '#a45cff', coreColor: '#f0e4ff', edgeHeat: 55, haze: 50,
+        posX: 50, posY: 50, coreSize: 45,
+      },
+    },
+    {
+      // Purple filaments writhing outward with racing highlights
+      name: 'Void Tendrils',
+      params: {
+        blastStyle: 'tendrils',
+        intensity: 90, rate: 24, waveCount: 1, chargeUp: 60, flash: 55,
+        speed: 35, range: 95, thickness: 5, deceleration: 35, sharpness: 35, afterglow: 50,
+        distortion: 45, breakup: 30, shimmer: 70, motes: 55, sparks: 80,
+        color: '#b14dff', coreColor: '#ffe9ff', edgeHeat: 50, haze: 45,
+        posX: 50, posY: 50, coreSize: 40,
+      },
+    },
+    {
+      // Cyan core with dozens of crisp flaring light rays — reactor look
+      name: 'Star Reactor',
+      params: {
+        blastStyle: 'starburst',
+        intensity: 92, rate: 28, waveCount: 2, chargeUp: 65, flash: 85,
+        speed: 60, range: 100, thickness: 5, deceleration: 50, sharpness: 75, afterglow: 35,
+        distortion: 25, breakup: 20, shimmer: 50, motes: 70, sparks: 75,
+        color: '#3ed2ff', coreColor: '#e6feff', edgeHeat: 80, haze: 55,
+        posX: 50, posY: 50, coreSize: 50,
+      },
+    },
+    {
+      // Deep blue debris streams erupting in clustered jets
+      name: 'Particle Nova',
+      params: {
+        blastStyle: 'particleBlast',
+        intensity: 90, rate: 16, waveCount: 1, chargeUp: 75, flash: 70,
+        speed: 70, range: 100, thickness: 5, deceleration: 60, sharpness: 50, afterglow: 30,
+        distortion: 35, breakup: 30, shimmer: 40, motes: 60, sparks: 90,
+        color: '#2f7dff', coreColor: '#dcedff', edgeHeat: 65, haze: 50,
+        posX: 50, posY: 50, coreSize: 45,
+      },
+    },
   ],
 
   explosionRing: [

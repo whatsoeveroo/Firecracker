@@ -619,6 +619,7 @@ export const EFFECTS = [
     icon: 'energyPulse',
     factory: createEnergyPulseEffect,
     defaults: {
+      blastStyle:   'shockwave',
       intensity:    85,
       rate:         40,
       waveCount:    2,
@@ -645,6 +646,16 @@ export const EFFECTS = [
     },
     params: [
       // ── PULSE ──
+      {
+        key: 'blastStyle', label: 'Blast Style', type: 'select', group: 'PULSE', restartOnChange: true,
+        options: [
+          { value: 'shockwave',     label: 'Shockwave'     },
+          { value: 'plasmaOrb',     label: 'Plasma Orb'    },
+          { value: 'tendrils',      label: 'Energy Tendrils' },
+          { value: 'starburst',     label: 'Star Reactor'  },
+          { value: 'particleBlast', label: 'Particle Nova' },
+        ],
+      },
       { key: 'intensity', label: 'Intensity',    min: 10, max: 100, group: 'PULSE' },
       { key: 'rate',      label: 'Pulse Rate',   min: 5,  max: 100, group: 'PULSE', hint: 'Time between pulses' },
       { key: 'waveCount', label: 'Waves / Pulse',min: 1,  max: 3,   group: 'PULSE', hint: 'Stacked wavefronts per release' },
