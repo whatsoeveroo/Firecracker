@@ -39,6 +39,7 @@ export function createEnergyPulseEffect() {
   let motes = [];        // { ang, r, om, tw, size, kick, heat, wob }
   let sparks = [];       // { x, y, vx, vy, life, maxLife, w }
   let burstRays = [];    // { ang, len, bend, w, life, maxLife, hotMix }
+  let flashRings = [];   // { age, maxLife } — lineless volumetric release shells
   let cycleT = 0;        // time since last emission
   let flashE = 0;        // emission flash energy, decays exponentially
   let time = 0;
@@ -58,16 +59,20 @@ export function createEnergyPulseEffect() {
     }
     flashE = P.flash;
 
-    // burst filaments — thin light lines that snap out and die in ~0.1–0.3s
-    const rayN = Math.round(6 + P.sparkAmt * 14 + P.flash * 10);
+    // lineless volumetric shell that races out and dies fast
+    flashRings.push({ age: 0, maxLife: 0.26 + Math.random() * 0.12 });
+
+    // burst filaments — thin light lines that snap out and die in ~0.15–0.4s
+    const rayN = Math.round(10 + P.sparkAmt * 20 + P.flash * 14);
     for (let i = 0; i < rayN; i++) {
+      const long = Math.random() < 0.22; // a few fast macro streaks
       burstRays.push({
         ang: Math.random() * Math.PI * 2,
-        len: maxR * (0.14 + Math.random() * 0.42) * (0.45 + P.flash * 0.75),
-        bend: (Math.random() - 0.5) * 0.5,
-        w: 0.6 + Math.random() * 2.0,
+        len: maxR * (0.24 + Math.random() * 0.55) * (0.5 + P.flash * 0.8) * (long ? 1.7 : 1),
+        bend: (Math.random() - 0.5) * (long ? 0.2 : 0.5),
+        w: long ? 0.5 + Math.random() * 1.0 : 0.6 + Math.random() * 2.0,
         life: 0,
-        maxLife: 0.14 + Math.random() * 0.24,
+        maxLife: (0.14 + Math.random() * 0.24) * (long ? 1.4 : 1),
         hotMix: 0.35 + Math.random() * 0.6,
       });
     }
@@ -108,6 +113,7 @@ export function createEnergyPulseEffect() {
       motes = [];
       sparks = [];
       burstRays = [];
+      flashRings = [];
       cycleT = 0;
       flashE = 0;
       time = 0;
@@ -169,7 +175,7 @@ export function createEnergyPulseEffect() {
         cycleT = 0;
         emitPulse(P, cx, cy, maxR);
       }
-      flashE *= Math.exp(-6.5 * dt);
+      flashE *= Math.exp(-5.5 * dt);
 
       // charge glow ramps over the last portion of the cycle
       const chargeFrac = 0.25 + P.chargeUp * 0.45;
@@ -213,11 +219,15 @@ export function createEnergyPulseEffect() {
         }
       }
 
-      // ── update burst rays ──
+      // ── update burst rays + flash shells ──
       for (let i = burstRays.length - 1; i >= 0; i--) {
         const ry = burstRays[i];
         ry.life += dt;
         if (ry.life >= ry.maxLife) burstRays.splice(i, 1);
+      }
+      for (let i = flashRings.length - 1; i >= 0; i--) {
+        flashRings[i].age += dt;
+        if (flashRings[i].age >= flashRings[i].maxLife) flashRings.splice(i, 1);
       }
 
       // ── update sparks ──
@@ -250,6 +260,25 @@ export function createEnergyPulseEffect() {
         gz.addColorStop(1, rgba(main, 0));
         ctx.fillStyle = gz;
         ctx.fillRect(cx - hazeR, cy - hazeR, hazeR * 2, hazeR * 2);
+      }
+
+      // release shells — pure gradient annulus, no stroke: volumetric punch
+      for (const fr of flashRings) {
+        const p = fr.age / fr.maxLife;
+        const ease = 1 - Math.pow(1 - p, 2.5);
+        const r = Math.max(coreR, ease * maxR * (0.30 + P.flash * 0.35));
+        const a = Math.pow(1 - p, 1.8) * P.flash * intensity * 0.55;
+        if (a <= 0.01) continue;
+        const rOut = r * 1.45;
+        const gs = ctx.createRadialGradient(cx, cy, 0, cx, cy, rOut);
+        gs.addColorStop(0, rgba(main, 0));
+        gs.addColorStop(clamp01(r * 0.5 / rOut), rgba(main, a * 0.25));
+        gs.addColorStop(clamp01(r / rOut), rgba(mix(main, WHITE, 0.3), a));
+        gs.addColorStop(1, rgba(main, 0));
+        ctx.fillStyle = gs;
+        ctx.beginPath();
+        ctx.arc(cx, cy, rOut, 0, Math.PI * 2);
+        ctx.fill();
       }
 
       // wavefronts
@@ -322,10 +351,13 @@ export function createEnergyPulseEffect() {
           ctx.fill();
         }
 
-        // body + hot edge — short butt-capped segments with smoothly varying
-        // alpha/width, so the front breathes instead of reading as a vector line
+        // body + hot edge — constant-width strokes per pass (width changes
+        // between segments showed as facet seams), alpha alone carries the
+        // angular modulation; body split into soft + thin layers so the
+        // front stays translucent instead of reading as a solid ribbon
         ctx.lineCap = 'butt';
         const STEP = 2;
+        const edgeBase = baseA * (0.16 + P.sharp * 0.42) * (1 - x * 0.45);
         for (let i = 0; i < SEG; i += STEP) {
           const j = i + STEP;
           const segIm = (pts[i].im + pts[j].im) * 0.5;
@@ -335,15 +367,19 @@ export function createEnergyPulseEffect() {
           const x0 = cx + pts[i].c * r0, y0 = cy + pts[i].s * r0;
           const x1 = cx + pts[j].c * r1, y1 = cy + pts[j].s * r1;
 
-          ctx.lineWidth = th * (0.65 + 0.65 * segIm);
-          ctx.strokeStyle = rgba(main, baseA * 0.80 * segIm);
+          ctx.lineWidth = th * 2.3;
+          ctx.strokeStyle = rgba(main, baseA * 0.26 * segIm);
           ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
 
-          const edgeA = baseA * (0.30 + P.sharp * 0.70) * Math.pow(segIm, 1.6);
+          ctx.lineWidth = th * 0.95;
+          ctx.strokeStyle = rgba(main, baseA * 0.45 * segIm);
+          ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+
+          const edgeA = edgeBase * Math.pow(segIm, 2);
           if (edgeA > 0.006) {
             const eo = th * 0.45;
             const e0 = (wv.r + eo) * pts[i].m, e1 = (wv.r + eo) * pts[j].m;
-            ctx.lineWidth = Math.max(1, th * 0.34);
+            ctx.lineWidth = Math.max(1, th * 0.30);
             ctx.strokeStyle = rgba(hot, edgeA);
             ctx.beginPath();
             ctx.moveTo(cx + pts[i].c * e0, cy + pts[i].s * e0);
@@ -378,11 +414,11 @@ export function createEnergyPulseEffect() {
       for (const ry of burstRays) {
         const p = ry.life / ry.maxLife;
         const ease = 1 - Math.pow(1 - p, 3); // fast snap out
-        const fade = Math.pow(1 - p, 1.7) * intensity * (0.55 + P.flash * 0.8);
+        const fade = Math.pow(1 - p, 1.7) * intensity * (0.7 + P.flash * 0.8);
         if (fade <= 0.01) continue;
 
-        const base = coreR * (1.1 + ease * 0.8) + ease * ry.len * 0.35;
-        const tip  = coreR * 1.4 + ease * ry.len;
+        const base = coreR * (1.2 + ease * 1.0) + ease * ry.len * 0.35;
+        const tip  = coreR * 1.6 + ease * ry.len;
         if (tip - base < 2) continue;
 
         const bx = cx + Math.cos(ry.ang) * base, by = cy + Math.sin(ry.ang) * base;
@@ -426,7 +462,7 @@ export function createEnergyPulseEffect() {
       }
 
       // core: haze → colored glow → hot center, scaled by charge + flash
-      const coreScale = (1 + charge * 0.55 + flashE * 1.5) * flicker;
+      const coreScale = (1 + charge * 0.55 + flashE * 1.8) * flicker;
       const cR = coreR * coreScale;
       const coreA = intensity * (0.45 + charge * 0.35 + flashE * 0.8);
 
